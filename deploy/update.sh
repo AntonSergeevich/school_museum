@@ -26,8 +26,12 @@ PREV="$(as_app git rev-parse HEAD)"
 ROLLED_CODE=0
 echo "=== $(date '+%F %T') Выкатка ветки $BRANCH ==="
 
+IN_ERROR=0
 on_error() {
     local code=$?
+    [ "$IN_ERROR" = 1 ] && return
+    IN_ERROR=1
+    trap - ERR
     echo "✗ Ошибка на шаге «$STEP» (код $code)"
     if [ "$ROLLED_CODE" = 1 ]; then
         rollback "ошибка на шаге «$STEP»"
@@ -46,8 +50,8 @@ rollback() {
     as_app git reset -q --hard "$PREV"
     as_app .venv/bin/pip install -q -r requirements.txt || true
     as_app .venv/bin/python manage.py collectstatic --noinput -v0 || true
-    as_app sh -c "git rev-parse HEAD > VERSION"
-    fix_permissions
+    as_app sh -c "git rev-parse HEAD > VERSION" || true
+    fix_permissions || true
     systemctl restart "$SERVICE" || true
     local code; code="$("$ROOT/deploy/probe.sh")"
     notify "❌ Сайт музея: новая версия не заработала ($1). Откатил на ${PREV:0:7}, сайт отвечает: $code. Журнал: /var/log/museum-deploy.log"

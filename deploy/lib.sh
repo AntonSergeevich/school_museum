@@ -34,8 +34,15 @@ set_env() {
 # Команда от владельца проекта. Git и pip под root создают файлы с владельцем
 # root, и следующая выкатка ломается уже на правах — поэтому root только
 # управляет службами, а код трогает владелец.
+# Окружение чистое (env -i): переменные root-а владельцу проекта ни к чему,
+# а путь к чужому сертификату в них однажды уже уронил pip.
+# Без подоболочки ( … ): при set -E ошибка внутри неё запускала обработчик
+# ошибок дважды — внутри и снаружи, — и откат выполнялся два раза.
 as_app() {
-    (cd "$ROOT" && runuser -u "$APP_USER" -- env HOME="/home/$APP_USER" GIT_TERMINAL_PROMPT=0 "$@")
+    runuser -u "$APP_USER" -- env -i \
+        PATH=/usr/local/bin:/usr/bin:/bin HOME="$(getent passwd "$APP_USER" | cut -d: -f6)" \
+        LANG=C.UTF-8 GIT_TERMINAL_PROMPT=0 \
+        -C "$ROOT" "$@"
 }
 
 notify() {
