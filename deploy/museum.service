@@ -1,0 +1,28 @@
+# Устанавливается скриптами install.sh / update.sh в /etc/systemd/system/museum.service
+[Unit]
+Description=Сайт музея авиации школы № 149 (gunicorn)
+After=network.target postgresql.service
+
+[Service]
+Type=notify
+User=museum
+# Группа www-data: файлы, которые загружает администратор, сразу читает nginx.
+Group=www-data
+UMask=0027
+WorkingDirectory=/srv/museum
+EnvironmentFile=/srv/museum/.env
+RuntimeDirectory=museum
+# Сокет вместо порта: nginx и приложение на одной машине.
+# timeout 120: загрузка панорамы на 30–60 МБ с медленного интернета.
+ExecStart=/srv/museum/.venv/bin/gunicorn config.wsgi:application \
+    --bind unix:/run/museum/gunicorn.sock \
+    --workers 3 \
+    --timeout 120 \
+    --access-logfile - \
+    --error-logfile -
+ExecReload=/bin/kill -s HUP $MAINPID
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target

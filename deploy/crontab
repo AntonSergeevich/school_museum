@@ -1,0 +1,3 @@
+# Задачи пользователя museum. Установка: crontab -u museum /srv/museum/deploy/crontab
+# Резервная копия базы и фото — каждую ночь (время сервера).
+30 3 * * *  /srv/museum/deploy/backup.sh >> /srv/backups/museum/backup.log 2>&1

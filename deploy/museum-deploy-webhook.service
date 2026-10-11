@@ -1,0 +1,20 @@
+# Слушатель вебхука GitHub для автодеплоя. Устанавливается install.sh.
+[Unit]
+Description=Автодеплой сайта музея по вебхуку GitHub
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=exec
+# От root сознательно: update.sh перезапускает службы. Поэтому это отдельный
+# процесс, а не часть сайта: сайт разбирает чужой ввод и прав root не имеет,
+# а здесь только проверка подписи и запуск одного фиксированного скрипта.
+User=root
+EnvironmentFile=/etc/museum-deploy-webhook.env
+ExecStart=/usr/bin/python3 /srv/museum/deploy/webhook_deploy.py
+Restart=always
+RestartSec=5
+SyslogIdentifier=museum-deploy-webhook
+
+[Install]
+WantedBy=multi-user.target
