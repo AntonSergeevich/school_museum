@@ -5,7 +5,7 @@ from django.conf import settings
 from django.contrib import messages
 from django.core.paginator import Paginator
 from django.db.models import Count, Q
-from django.http import JsonResponse
+from django.http import HttpResponsePermanentRedirect, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 
@@ -188,3 +188,14 @@ def health(request):
     status = 200 if db == "ok" else 503
     return JsonResponse({"status": "ok" if status == 200 else "error", "db": db, "version": code_version()},
                         status=status)
+
+
+def static_redirect(request, path):
+    """Иконки, которые браузеры и боты просят из корня сайта (/favicon.ico).
+
+    Адрес статики вычисляется при запросе, а не при импорте urls: при выкатке
+    migrate импортирует urls раньше, чем collectstatic внесёт новый файл
+    в манифест, и вычисление «заранее» роняло бы выкатку.
+    """
+    from django.templatetags.static import static
+    return HttpResponsePermanentRedirect(static(path))

@@ -48,10 +48,11 @@ say "Код"
 if [ ! -d "$ROOT/.git" ]; then
     runuser -u "$APP_USER" -- env GIT_TERMINAL_PROMPT=0 git clone -q -b "$BRANCH" "$REPO" "$ROOT"
 else
-    echo "уже склонирован: $(git -C "$ROOT" log --oneline -1)"
+    echo "уже склонирован"
 fi
 # shellcheck source=deploy/lib.sh
 source "$ROOT/deploy/lib.sh"
+as_app git log --oneline -1
 
 say "Окружение Python"
 [ -x "$ROOT/.venv/bin/python" ] || as_app python3 -m venv .venv
@@ -149,7 +150,7 @@ say "Брандмауэр"
 ufw allow OpenSSH >/dev/null
 ufw allow 'Nginx Full' >/dev/null
 ufw --force enable >/dev/null
-ufw status | head -5
+ufw status
 
 say "Резервные копии"
 crontab -u "$APP_USER" "$ROOT/deploy/crontab"

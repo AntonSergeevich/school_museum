@@ -220,3 +220,12 @@ class HealthTests(TestCase):
         data = self.client.get("/health/").json()
         self.assertEqual(data["status"], "ok")
         self.assertIn("version", data)
+
+
+class IconTests(TestCase):
+    def test_root_icons_redirect_to_static(self):
+        for url in ["/favicon.ico", "/apple-touch-icon.png"]:
+            with self.subTest(url=url):
+                resp = self.client.get(url)
+                self.assertEqual(resp.status_code, 301)
+                self.assertIn("/static/img/", resp["Location"])

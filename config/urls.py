@@ -6,6 +6,7 @@ from django.contrib.sitemaps.views import sitemap
 from django.urls import include, path
 from django.views.generic import TemplateView
 
+from museum import views
 from museum.models import Exhibit, Hall, Person
 
 sitemaps = {
@@ -17,6 +18,9 @@ sitemaps = {
 urlpatterns = [
     path("cabinet/", admin.site.urls),
     path("sitemap.xml", sitemap, {"sitemaps": sitemaps}, name="sitemap"),
+    path("favicon.ico", views.static_redirect, {"path": "img/favicon.ico"}),
+    path("apple-touch-icon.png", views.static_redirect, {"path": "img/apple-touch-icon.png"}),
+    path("apple-touch-icon-precomposed.png", views.static_redirect, {"path": "img/apple-touch-icon.png"}),
     path("robots.txt", TemplateView.as_view(template_name="robots.txt", content_type="text/plain")),
     path("", include("museum.urls")),
 ]
