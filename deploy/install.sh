@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
-# Установка сайта музея на чистый Beget VPS (Ubuntu 22.04 / 24.04) одной командой:
+# Установка сайта музея на чистый Beget VPS (Ubuntu 22.04 / 24.04 / 26.04) одной командой:
 #
 #   ssh root@IP_СЕРВЕРА
 #   git clone -b main https://github.com/AntonSergeevich/school_museum.git /tmp/museum
 #   ADMIN_EMAIL=glukhovas@yandex.ru bash /tmp/museum/deploy/install.sh
 #
-# Необязательно: DOMAIN=museum149.ru — если DNS уже настроен, HTTPS включится сразу.
+# Необязательно: DOMAIN=alsib-krsk.ru — если DNS уже настроен, HTTPS включится сразу.
 # Без домена сайт откроется по http://IP_СЕРВЕРА, домен подключается позже
 # командой deploy/certbot.sh. Повторный запуск безопасен: что сделано — пропускается.
 set -euo pipefail
@@ -21,8 +21,20 @@ export MUSEUM_ROOT="$ROOT" MUSEUM_USER="$APP_USER"
 [ "$(id -u)" -eq 0 ] || { echo "Запускайте от root"; exit 1; }
 say() { printf '\n=== %s ===\n' "$*"; }
 
+# Обрыв SSH не должен убивать установку на середине: сигнал разрыва
+# связи игнорируем, а весь вывод (включая секрет вебхука в конце) пишем
+# в журнал — его можно дочитать после переподключения.
+# tee -p: если терминала уже нет, tee продолжает писать в файл, а не падает.
+LOG=/var/log/museum-install.log
+trap '' HUP
+exec > >(trap '' HUP; exec tee -p -a "$LOG") 2>&1
+echo "=== $(date '+%F %T') Установка. Журнал: $LOG ==="
+
 say "Пакеты"
 export DEBIAN_FRONTEND=noninteractive
+# needrestart после установки пакетов сам перезапускает службы, включая ssh —
+# сессия, из которой идёт установка, при этом может оборваться.
+export NEEDRESTART_MODE=l NEEDRESTART_SUSPEND=1
 apt-get update -q
 apt-get install -y -q python3-venv python3-dev build-essential libpq-dev postgresql nginx \
     certbot git rsync sqlite3 curl ufw openssl unzip rclone
@@ -36,10 +48,11 @@ say "Код"
 if [ ! -d "$ROOT/.git" ]; then
     runuser -u "$APP_USER" -- env GIT_TERMINAL_PROMPT=0 git clone -q -b "$BRANCH" "$REPO" "$ROOT"
 else
-    echo "уже склонирован: $(git -C "$ROOT" log --oneline -1)"
+    echo "уже склонирован"
 fi
 # shellcheck source=deploy/lib.sh
 source "$ROOT/deploy/lib.sh"
+as_app git log --oneline -1
 
 say "Окружение Python"
 [ -x "$ROOT/.venv/bin/python" ] || as_app python3 -m venv .venv
@@ -137,7 +150,7 @@ say "Брандмауэр"
 ufw allow OpenSSH >/dev/null
 ufw allow 'Nginx Full' >/dev/null
 ufw --force enable >/dev/null
-ufw status | head -5
+ufw status
 
 say "Резервные копии"
 crontab -u "$APP_USER" "$ROOT/deploy/crontab"
@@ -178,6 +191,7 @@ cat <<DONE
 
 3) Уведомления в MAX и пароль почты — DEPLOY.md, разделы «Уведомления в MAX» и «Почта».
 
-Когда будет домен: sudo bash $ROOT/deploy/certbot.sh ваш-домен.ru
+Когда будет домен: sudo bash $ROOT/deploy/certbot.sh alsib-krsk.ru
 Если что-то не так:  sudo bash $ROOT/deploy/health.sh
+Весь вывод установки: $LOG
 DONE

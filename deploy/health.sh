@@ -21,7 +21,8 @@ esac
 line "nginx"
 systemctl is-active nginx >/dev/null && echo "работает" || echo "НЕ РАБОТАЕТ"
 nginx -t 2>&1 | tail -2
-echo "Отказов по лимиту частоты: $(grep -c 'limiting requests' /var/log/nginx/error.log 2>/dev/null || echo 0)"
+# grep -c сам печатает 0, когда совпадений нет; «|| true» — только ради кода возврата.
+echo "Отказов по лимиту частоты: $(grep -c 'limiting requests' /var/log/nginx/error.log 2>/dev/null || true)"
 line "Ответы 5xx и 429 в журнале доступа"
 awk '{print $9}' /var/log/nginx/access.log 2>/dev/null | grep -E '^(429|5[0-9][0-9])$' | sort | uniq -c || true
 line "Сертификат"
@@ -39,4 +40,5 @@ df -h / | tail -1
 echo "Медиа: $(du -sh "$ROOT/media" 2>/dev/null | cut -f1), копии: $(du -sh /srv/backups/museum 2>/dev/null | cut -f1)"
 free -h | head -2
 line "Версия кода"
-git -C "$ROOT" log --oneline -1 2>&1
+# git — от владельца проекта: от root он отказывается («dubious ownership»).
+as_app git log --oneline -1 2>&1

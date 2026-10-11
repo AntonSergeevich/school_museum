@@ -66,14 +66,19 @@ render_nginx() {
         template="$ROOT/deploy/nginx-http.conf"
     fi
     names="${domain:+$domain www.$domain }$(server_ip) _"
-    python3 - "$template" "$ROOT/deploy/nginx-common.inc" "${domain:-_}" "$names" "$ROOT" <<'PY'
+    local nginx_version="${NGINX_VERSION:-$(nginx -v 2>&1 | sed -n 's|.*nginx/\([0-9.]*\).*|\1|p')}"
+    python3 - "$template" "$ROOT/deploy/nginx-common.inc" "${domain:-_}" "$names" "$ROOT" "${nginx_version:-0}" <<'PY'
 import sys
-template, common, domain, names, root = sys.argv[1:]
+template, common, domain, names, root, version = sys.argv[1:]
 inc = "".join("    " + line if line.strip() else line for line in open(common, encoding="utf-8"))
 out = []
 for line in open(template, encoding="utf-8"):
     out.append(inc if line.strip() == "include __ROOT__/deploy/nginx-common.inc;" else line)
 text = "".join(out).replace("__DOMAIN__", domain).replace("__NAMES__", names).replace("__ROOT__", root)
+# nginx 1.25.1+ (Ubuntu 26.04 — 1.28) просит отдельную директиву «http2 on;»
+# и предупреждает о старой форме; в 1.24 (Ubuntu 24.04) новой директивы нет вовсе.
+if tuple(int(x) for x in (version.split(".") + ["0", "0"])[:3] if x.isdigit()) >= (1, 25, 1):
+    text = text.replace("listen 443 ssl http2 default_server;", "listen 443 ssl default_server;\n    http2 on;")
 sys.stdout.write(text)
 PY
 }

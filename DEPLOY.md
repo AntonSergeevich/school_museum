@@ -1,6 +1,6 @@
 # Установка на Beget VPS и автодеплой
 
-Сервер: **141.133.192.56** (Beget VPS, Ubuntu 22.04/24.04). Домен подключается позже, одной командой.
+Сервер: **141.133.192.56** (Beget VPS, Ubuntu 26.04, nginx 1.28, PostgreSQL 18, Python 3.14). Домен: **alsib-krsk.ru**.
 
 После установки всё обновляется само: `git push` в ветку `main` → GitHub стучится на сервер →
 сервер забирает код, делает копию базы, применяет миграции, перезапускается и проверяет, что сайт
@@ -28,11 +28,21 @@ ssh root@141.133.192.56                       # теперь без пароля
 
 ## 1. Установка — одна команда
 
+Все команды из этой инструкции выполняются **на сервере** (после `ssh root@141.133.192.56`),
+а не в PowerShell на своём компьютере. На сервере вы уже root, `sudo` не обязателен.
+
+Долгие команды запускайте внутри `tmux`: если SSH оборвётся, работа продолжится,
+а `tmux attach` вернёт вас туда же.
+
 ```bash
 ssh root@141.133.192.56
-git clone -b main https://github.com/AntonSergeevich/school_museum.git /tmp/museum
-ADMIN_EMAIL=glukhovas@yandex.ru bash /tmp/museum/deploy/install.sh
+apt install -y tmux && tmux new -s museum
+git clone -b main https://github.com/AntonSergeevich/school_museum.git /tmp/museum   # если ещё не склонирован
+DOMAIN=alsib-krsk.ru ADMIN_EMAIL=glukhovas@yandex.ru bash /tmp/museum/deploy/install.sh
 ```
+
+Связь оборвалась? `ssh root@141.133.192.56`, затем `tmux attach -t museum`.
+Даже без tmux установка дорабатывает до конца, а весь вывод остаётся в `/var/log/museum-install.log`.
 
 Скрипт ставит пакеты, заводит пользователя `museum`, базу PostgreSQL (с правами на схему — без них
 на PostgreSQL 15+ падают миграции), `.env` со сгенерированными ключами, службу, nginx, брандмауэр,
@@ -56,7 +66,7 @@ GitHub → репозиторий → **Settings → Webhooks → Add webhook**:
 
 | Поле | Значение |
 |---|---|
-| Payload URL | `http://141.133.192.56/internal/deploy-webhook` (после домена — `https://домен/internal/deploy-webhook`) |
+| Payload URL | `http://141.133.192.56/internal/deploy-webhook`, после подключения домена — `https://alsib-krsk.ru/internal/deploy-webhook` |
 | Content type | `application/json` |
 | Secret | секрет из вывода install.sh — **одним значением**, без `DEPLOY_WEBHOOK_SECRET=` |
 | Events | Just the push event |
@@ -65,7 +75,7 @@ GitHub → репозиторий → **Settings → Webhooks → Add webhook**:
 Красная с 401 — секрет вставлен не тот (смотреть: `journalctl -u museum-deploy-webhook -n 20`).
 
 Чтобы GitHub Actions после каждого пуша проверял, что новая версия дошла до сервера:
-**Settings → Secrets and variables → Actions → Variables → New variable**: `SITE_URL` = `http://141.133.192.56`.
+**Settings → Secrets and variables → Actions → Variables → New variable**: `SITE_URL` = `http://141.133.192.56`, после домена — `https://alsib-krsk.ru`.
 
 ## 4. Уведомления в MAX
 
@@ -126,14 +136,30 @@ sudo -u museum .venv/bin/python manage.py import_drive /srv/import/Музей
 «Публикация согласована» и публикует (в списке «Люди трассы» есть действие «Опубликовать»).
 Сочинения учеников не импортируются: это данные детей, их публикуют только с согласия родителей.
 
-## 7. Домен (когда выберете)
+## 7. Домен alsib-krsk.ru
 
-1. У регистратора: A-запись `@` → `141.133.192.56` и A-запись `www` → `141.133.192.56`.
-2. Подождать DNS (15 минут – сутки). Проверка: `getent ahostsv4 домен.ru`.
-3. `sudo bash /srv/museum/deploy/certbot.sh домен.ru` — сертификат, HTTPS, редиректы, настройки сайта.
-4. Поменять Payload URL вебхука и переменную `SITE_URL` на `https://домен.ru`.
+1. **DNS.** Панель Beget → **DNS** → домен `alsib-krsk.ru`. Если домен зарегистрирован у другого регистратора, то же самое делается в его панели. Записи:
 
-Кириллический домен (`.рф`) скрипт сам переведёт в punycode.
+   | Имя | Тип | Значение |
+   |---|---|---|
+   | `@` (alsib-krsk.ru) | A | `141.133.192.56` |
+   | `www` | A | `141.133.192.56` |
+
+   Остальные A-записи для `@` и `www` (например, на «заглушку» регистратора) удалить. Иначе часть посетителей и проверка Let's Encrypt уйдут на чужой адрес.
+2. Подождать DNS: от 15 минут до суток. Проверка с сервера: `getent ahostsv4 alsib-krsk.ru` должна показать `141.133.192.56`.
+3. На сервере:
+
+   ```bash
+   sudo bash /srv/museum/deploy/certbot.sh alsib-krsk.ru
+   ```
+
+   Скрипт сам проверит DNS, выпустит сертификат, включит HTTPS и редиректы (http → https, www → без www), пропишет домен в `.env`.
+   Если DNS ещё не обновился, скрипт скажет, куда сейчас указывает домен, и ничего не сломает. Повторите позже.
+4. GitHub:
+   - Settings → Webhooks → ваш вебхук → Payload URL: `https://alsib-krsk.ru/internal/deploy-webhook`;
+   - Settings → Secrets and variables → Actions → Variables → `SITE_URL` = `https://alsib-krsk.ru`.
+
+Если DNS готов ещё до установки, можно сразу: `DOMAIN=alsib-krsk.ru ADMIN_EMAIL=glukhovas@yandex.ru bash /tmp/museum/deploy/install.sh`.
 
 ## Повседневное
 
@@ -165,7 +191,7 @@ scp -r root@141.133.192.56:/srv/backups/museum/db ./museum-backup-db
 |---|---|
 | 502 Bad Gateway | Приложение не запущено: `journalctl -u museum -n 50` |
 | 400 Bad Request | Адреса нет в `DJANGO_ALLOWED_HOSTS` в `.env` |
-| CSRF verification failed | В `DJANGO_CSRF_TRUSTED_ORIGINS` нет адреса со схемой (`https://домен`) |
+| CSRF verification failed | В `DJANGO_CSRF_TRUSTED_ORIGINS` нет адреса со схемой (`https://alsib-krsk.ru`) |
 | Сайт без стилей / фото не открываются (403) | Права: `sudo bash -c 'source /srv/museum/deploy/lib.sh; fix_permissions'` |
 | 413 при загрузке панорамы | Файл больше 64 МБ — уменьшите до 8192×4096 |
 | 429 «Слишком много попыток» | Лимит на отправку форм (10 в минуту с адреса) — защита от ботов, сайт работает |
