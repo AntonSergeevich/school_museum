@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Установка сайта музея на чистый Beget VPS (Ubuntu 22.04 / 24.04) одной командой:
+# Установка сайта музея на чистый Beget VPS (Ubuntu 22.04 / 24.04 / 26.04) одной командой:
 #
 #   ssh root@IP_СЕРВЕРА
 #   git clone -b main https://github.com/AntonSergeevich/school_museum.git /tmp/museum
@@ -21,8 +21,20 @@ export MUSEUM_ROOT="$ROOT" MUSEUM_USER="$APP_USER"
 [ "$(id -u)" -eq 0 ] || { echo "Запускайте от root"; exit 1; }
 say() { printf '\n=== %s ===\n' "$*"; }
 
+# Обрыв SSH не должен убивать установку на середине: сигнал разрыва
+# связи игнорируем, а весь вывод (включая секрет вебхука в конце) пишем
+# в журнал — его можно дочитать после переподключения.
+# tee -p: если терминала уже нет, tee продолжает писать в файл, а не падает.
+LOG=/var/log/museum-install.log
+trap '' HUP
+exec > >(trap '' HUP; exec tee -p -a "$LOG") 2>&1
+echo "=== $(date '+%F %T') Установка. Журнал: $LOG ==="
+
 say "Пакеты"
 export DEBIAN_FRONTEND=noninteractive
+# needrestart после установки пакетов сам перезапускает службы, включая ssh —
+# сессия, из которой идёт установка, при этом может оборваться.
+export NEEDRESTART_MODE=l NEEDRESTART_SUSPEND=1
 apt-get update -q
 apt-get install -y -q python3-venv python3-dev build-essential libpq-dev postgresql nginx \
     certbot git rsync sqlite3 curl ufw openssl unzip rclone
@@ -180,4 +192,5 @@ cat <<DONE
 
 Когда будет домен: sudo bash $ROOT/deploy/certbot.sh alsib-krsk.ru
 Если что-то не так:  sudo bash $ROOT/deploy/health.sh
+Весь вывод установки: $LOG
 DONE

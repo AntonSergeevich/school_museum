@@ -1,6 +1,6 @@
 # Установка на Beget VPS и автодеплой
 
-Сервер: **141.133.192.56** (Beget VPS, Ubuntu 22.04/24.04). Домен: **alsib-krsk.ru**.
+Сервер: **141.133.192.56** (Beget VPS, Ubuntu 26.04, nginx 1.28, PostgreSQL 18, Python 3.14). Домен: **alsib-krsk.ru**.
 
 После установки всё обновляется само: `git push` в ветку `main` → GitHub стучится на сервер →
 сервер забирает код, делает копию базы, применяет миграции, перезапускается и проверяет, что сайт
@@ -28,11 +28,21 @@ ssh root@141.133.192.56                       # теперь без пароля
 
 ## 1. Установка — одна команда
 
+Все команды из этой инструкции выполняются **на сервере** (после `ssh root@141.133.192.56`),
+а не в PowerShell на своём компьютере. На сервере вы уже root, `sudo` не обязателен.
+
+Долгие команды запускайте внутри `tmux`: если SSH оборвётся, работа продолжится,
+а `tmux attach` вернёт вас туда же.
+
 ```bash
 ssh root@141.133.192.56
-git clone -b main https://github.com/AntonSergeevich/school_museum.git /tmp/museum
-ADMIN_EMAIL=glukhovas@yandex.ru bash /tmp/museum/deploy/install.sh
+apt install -y tmux && tmux new -s museum
+git clone -b main https://github.com/AntonSergeevich/school_museum.git /tmp/museum   # если ещё не склонирован
+DOMAIN=alsib-krsk.ru ADMIN_EMAIL=glukhovas@yandex.ru bash /tmp/museum/deploy/install.sh
 ```
+
+Связь оборвалась? `ssh root@141.133.192.56`, затем `tmux attach -t museum`.
+Даже без tmux установка дорабатывает до конца, а весь вывод остаётся в `/var/log/museum-install.log`.
 
 Скрипт ставит пакеты, заводит пользователя `museum`, базу PostgreSQL (с правами на схему — без них
 на PostgreSQL 15+ падают миграции), `.env` со сгенерированными ключами, службу, nginx, брандмауэр,

@@ -35,21 +35,25 @@ jobs:
         run: shellcheck -x -P SCRIPTDIR/.. deploy/*.sh
       - name: Python-скрипты деплоя без зависимостей
         run: python3 -m py_compile deploy/webhook_deploy.py deploy/notify_max.py
-      - name: nginx -t на версии из Ubuntu 24.04 (1.24)
+      - name: nginx -t на версиях Ubuntu 24.04 (1.24) и 26.04 (1.28)
         run: |
           set -e
           mkdir -p ci/sites ci/le/live/example.org
           openssl req -x509 -newkey rsa:2048 -nodes -days 1 -subj /CN=example.org \
             -keyout ci/le/live/example.org/privkey.pem -out ci/le/live/example.org/fullchain.pem 2>/dev/null
           printf 'proxy_set_header Host $http_host;\nproxy_set_header X-Real-IP $remote_addr;\nproxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;\nproxy_set_header X-Forwarded-Proto $scheme;\n' > ci/proxy_params
-          printf 'SITE_DOMAIN=\n' > .env
-          MUSEUM_ROOT="$PWD" MUSEUM_USER=runner bash -c 'source deploy/lib.sh; render_nginx' > ci/sites/http.conf
-          printf 'SITE_DOMAIN=example.org\n' > .env
           sudo mkdir -p /etc/letsencrypt && sudo cp -r ci/le/live /etc/letsencrypt/
-          MUSEUM_ROOT="$PWD" MUSEUM_USER=runner bash -c 'source deploy/lib.sh; render_nginx' > ci/sites/https.conf
-          for variant in http https; do
-            printf 'events {}\nhttp { include /etc/nginx/mime.types; include /site/%s.conf; }\n' "$variant" > ci/nginx-$variant.conf
-            docker run --rm -v "$PWD/ci/sites:/site:ro" -v "$PWD/ci/nginx-$variant.conf:/etc/nginx/nginx.conf:ro" \
-              -v "$PWD/ci/proxy_params:/etc/nginx/proxy_params:ro" -v /etc/letsencrypt:/etc/letsencrypt:ro \
-              nginx:1.24 nginx -t
+          for version in 1.24 1.28; do
+            printf 'SITE_DOMAIN=\n' > .env
+            NGINX_VERSION=$version MUSEUM_ROOT="$PWD" MUSEUM_USER=runner bash -c 'source deploy/lib.sh; render_nginx' > ci/sites/http.conf
+            printf 'SITE_DOMAIN=example.org\n' > .env
+            NGINX_VERSION=$version MUSEUM_ROOT="$PWD" MUSEUM_USER=runner bash -c 'source deploy/lib.sh; render_nginx' > ci/sites/https.conf
+            for variant in http https; do
+              printf 'events {}\nhttp { include /etc/nginx/mime.types; include /site/%s.conf; }\n' "$variant" > ci/nginx-$variant.conf
+              echo "== nginx $version, $variant"
+              docker run --rm -v "$PWD/ci/sites:/site:ro" -v "$PWD/ci/nginx-$variant.conf:/etc/nginx/nginx.conf:ro" \
+                -v "$PWD/ci/proxy_params:/etc/nginx/proxy_params:ro" -v /etc/letsencrypt:/etc/letsencrypt:ro \
+                nginx:$version nginx -t 2>&1 | tee ci/out.txt
+              if grep -q "\[warn\]" ci/out.txt; then echo "::error::nginx $version: предупреждения в конфиге"; exit 1; fi
+            done
           done
