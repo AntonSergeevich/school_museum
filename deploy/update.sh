@@ -8,8 +8,20 @@
 # Если сайт после выкатки не отвечает 200 — автоматический откат кода
 # на прошлую версию. Об итоге приходит сообщение в MAX.
 set -Eeuo pipefail
+
+# bash читает скрипт по ходу выполнения, а шаг «обновление кода» подменяет
+# этот самый файл. Чтобы не доиграть строки новой версии со старого места,
+# выполняемся из копии во временном каталоге.
+if [ -z "${MUSEUM_UPDATE_COPY:-}" ]; then
+    MUSEUM_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+    COPY="$(mktemp /tmp/museum-update.XXXXXX)"
+    cp "$0" "$COPY"
+    MUSEUM_UPDATE_COPY="$COPY" MUSEUM_ROOT="$MUSEUM_ROOT" exec bash "$COPY" "$@"
+fi
+trap 'rm -f "$MUSEUM_UPDATE_COPY"' EXIT
+export MUSEUM_ROOT
 # shellcheck source=deploy/lib.sh
-source "$(dirname "$0")/lib.sh"
+source "$MUSEUM_ROOT/deploy/lib.sh"
 
 if [ "$(id -u)" -ne 0 ]; then
     echo "Запускайте от root: sudo bash $0"; exit 1
