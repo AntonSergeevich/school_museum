@@ -39,10 +39,11 @@ set_env() {
 # Без подоболочки ( … ): при set -E ошибка внутри неё запускала обработчик
 # ошибок дважды — внутри и снаружи, — и откат выполнялся два раза.
 as_app() {
-    runuser -u "$APP_USER" -- env -i \
+    # Ключи env (-i, -C) — до присваиваний: после первого ИМЯ=значение
+    # всё остальное env считает командой.
+    runuser -u "$APP_USER" -- env -i -C "$ROOT" \
         PATH=/usr/local/bin:/usr/bin:/bin HOME="$(getent passwd "$APP_USER" | cut -d: -f6)" \
-        LANG=C.UTF-8 GIT_TERMINAL_PROMPT=0 \
-        -C "$ROOT" "$@"
+        LANG=C.UTF-8 GIT_TERMINAL_PROMPT=0 "$@"
 }
 
 notify() {

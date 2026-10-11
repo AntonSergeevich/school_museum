@@ -19,6 +19,8 @@ fi
 # всё равно берёт последний коммит ветки.
 exec 9>/run/museum-deploy.lock
 flock -n 9 || { echo "Выкатка уже идёт"; exit 0; }
+# Дескриптор блокировки не должен достаться долгоживущим процессам (9>&-),
+# иначе блокировка переживёт выкатку и следующая решит, что «уже идёт».
 
 BRANCH="$(env_value DEPLOY_BRANCH)"; BRANCH="${BRANCH:-main}"
 STEP="подготовка"
@@ -52,7 +54,7 @@ rollback() {
     as_app .venv/bin/python manage.py collectstatic --noinput -v0 || true
     as_app sh -c "git rev-parse HEAD > VERSION" || true
     fix_permissions || true
-    systemctl restart "$SERVICE" || true
+    systemctl restart "$SERVICE" 9>&- || true
     local code; code="$("$ROOT/deploy/probe.sh")"
     notify "❌ Сайт музея: новая версия не заработала ($1). Откатил на ${PREV:0:7}, сайт отвечает: $code. Журнал: /var/log/museum-deploy.log"
 }
@@ -107,7 +109,7 @@ if ! cmp -s "$TMP_CONF" "$NGINX_SITE"; then
     if nginx -t 2>&1; then
         # restart, а не reload: reload может отчитаться успехом и не применить
         # смену протоколов TLS.
-        systemctl restart nginx
+        systemctl restart nginx 9>&-
         echo "  конфиг nginx обновлён"
     else
         echo "  ✗ новый конфиг nginx не прошёл проверку — возвращаю прежний"
@@ -117,7 +119,7 @@ fi
 rm -f "$TMP_CONF"
 
 step "перезапуск сайта"
-systemctl restart "$SERVICE"
+systemctl restart "$SERVICE" 9>&-
 for _ in $(seq 1 15); do systemctl is-active --quiet "$SERVICE" && break; sleep 1; done
 
 step "проверка ответа сайта"
