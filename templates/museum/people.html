@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block title %}Люди трассы{% endblock %}
+{% block description %}Лётчики, техники и участники Красноярской воздушной трассы Аляска — Сибирь (АлСиб) 1942–1945 гг.{% endblock %}
+{% block content %}
+<section class="section page-head">
+  <div class="container">
+    <p class="eyebrow">Экипажи · 1942–1945</p>
+    <h1>Люди трассы</h1>
+    <p class="lead">Лётчики, штурманы, техники и другие участники Красноярской воздушной трассы Аляска — Сибирь.
+      Их имена и судьбы собраны музеем по архивным документам и воспоминаниям.</p>
+    <form class="filters" method="get" role="search">
+      <label class="visually-hidden" for="q">Поиск по имени</label>
+      <input id="q" type="search" name="q" value="{{ q }}" placeholder="Фамилия, звание, аэродром…">
+      {% if letters %}
+      <div class="chips letters" role="group" aria-label="Первая буква фамилии">
+        <a class="chip {% if not letter %}is-active{% endif %}" href="?">Все</a>
+        {% for l in letters %}<a class="chip {% if letter == l %}is-active{% endif %}" href="?letter={{ l|urlencode }}">{{ l }}</a>{% endfor %}
+      </div>
+      {% endif %}
+    </form>
+  </div>
+</section>
+<section class="section section--tight">
+  <div class="container">
+    <div class="people">
+      {% for p in people %}{% include "museum/_person_card.html" %}
+      {% empty %}<p class="muted">Записи появятся после проверки управляющим музеем.</p>{% endfor %}
+    </div>
+  </div>
+</section>
+{% endblock %}

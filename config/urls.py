@@ -6,11 +6,12 @@ from django.contrib.sitemaps.views import sitemap
 from django.urls import include, path
 from django.views.generic import TemplateView
 
-from museum.models import Exhibit, Hall
+from museum.models import Exhibit, Hall, Person
 
 sitemaps = {
     "exhibits": GenericSitemap({"queryset": Exhibit.published.all(), "date_field": "updated_at"}),
     "halls": GenericSitemap({"queryset": Hall.objects.filter(is_published=True)}),
+    "people": GenericSitemap({"queryset": Person.objects.filter(is_published=True)}),
 }
 
 urlpatterns = [

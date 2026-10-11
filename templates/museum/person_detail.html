@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block title %}{{ person.full_name }}{% endblock %}
+{% block description %}{{ person.full_name }}{% if person.rank %}, {{ person.rank }}{% endif %} — участник Красноярской воздушной трассы.{% endblock %}
+{% block content %}
+<article class="section exhibit">
+  <div class="container">
+    <nav class="crumbs" aria-label="Навигационная цепочка">
+      <a href="{% url 'museum:home' %}">Главная</a> / <a href="{% url 'museum:people' %}">Люди трассы</a>
+    </nav>
+    <div class="person-page">
+      <div class="person-page__photo">
+        {% if person.portrait %}<img src="{{ person.portrait.url }}" alt="Портрет: {{ person.full_name }}">
+        {% else %}<span class="person__initials person__initials--big" aria-hidden="true">{{ person.initials }}</span>{% endif %}
+      </div>
+      <div>
+        <p class="eyebrow">{{ person.group }}</p>
+        <h1>{{ person.full_name }}</h1>
+        <dl class="specs">
+          {% if person.rank %}<div><dt>Звание</dt><dd>{{ person.rank }}</dd></div>{% endif %}
+          {% if person.birth_date %}<div><dt>Дата рождения</dt><dd>{{ person.birth_date }}</dd></div>{% endif %}
+          {% if person.birth_place %}<div><dt>Место рождения</dt><dd>{{ person.birth_place }}</dd></div>{% endif %}
+        </dl>
+        {% if person.awards %}<h2 class="h3">Награды</h2><p>{{ person.awards }}</p>{% endif %}
+        {% if person.biography %}<h2 class="h3">Боевой путь</h2><div class="prose">{{ person.biography|linebreaks }}</div>{% endif %}
+        {% if person.source_file %}<p><a class="btn btn--ghost btn--sm" href="{{ person.source_file.url }}" target="_blank" rel="noopener">Исходный документ (PDF)</a></p>{% endif %}
+      </div>
+    </div>
+  </div>
+</article>
+{% endblock %}

@@ -1,0 +1,11 @@
+<a class="person reveal" href="{{ p.get_absolute_url }}">
+  <div class="person__photo">
+    {% if p.portrait %}<img src="{{ p.portrait.url }}" alt="{{ p.full_name }}" loading="lazy">
+    {% else %}<span class="person__initials" aria-hidden="true">{{ p.initials }}</span>{% endif %}
+  </div>
+  <div class="person__body">
+    <h3>{{ p.full_name }}</h3>
+    {% if p.rank %}<p>{{ p.rank|truncatechars:70 }}</p>{% endif %}
+    {% if p.birth_date %}<small class="mono">{{ p.birth_date }}</small>{% endif %}
+  </div>
+</a>

@@ -63,3 +63,160 @@ class SiteTests(TestCase):
             with self.subTest(m=m):
                 self.assertEqual(self.client.get(f"/cabinet/museum/{m}/").status_code, 200)
                 self.assertEqual(self.client.get(f"/cabinet/museum/{m}/add/").status_code, 200)
+
+
+import io
+import shutil
+import tempfile
+from pathlib import Path
+from unittest import mock
+
+from django.core.files.uploadedfile import SimpleUploadedFile
+from django.core.exceptions import ValidationError
+from django.test import SimpleTestCase
+from PIL import Image
+
+from config.envfile import parse_env_file
+from museum.management.commands.import_drive import clean_title, parse_biography
+from museum.models import Document, Panorama, Person
+from museum import notify
+
+TMP_MEDIA = tempfile.mkdtemp(prefix="museum-media-")
+
+
+def image_bytes(size=(4000, 3000), fmt="JPEG", gps=False):
+    img = Image.new("RGB", size, (120, 90, 60))
+    buf = io.BytesIO()
+    kwargs = {}
+    if gps:
+        exif = Image.Exif()
+        exif[0x8825] = {1: "N", 2: (56.0, 1.0, 0.0)}  # GPSInfo
+        kwargs["exif"] = exif
+    img.save(buf, fmt, **kwargs)
+    return buf.getvalue()
+
+
+class EnvFileTests(SimpleTestCase):
+    def test_last_value_wins_quotes_and_brackets(self):
+        with tempfile.NamedTemporaryFile("w", suffix=".env", delete=False, encoding="utf-8") as f:
+            f.write("# комментарий\nEMAIL_HOST_PASSWORD=\nDEFAULT_FROM_EMAIL=Музей <m@ya.ru>\n"
+                    "EMAIL_HOST_PASSWORD='секрет'\nмусор без равно\nexport A=1\n")
+        values = parse_env_file(f.name)
+        self.assertEqual(values["EMAIL_HOST_PASSWORD"], "секрет")
+        self.assertEqual(values["DEFAULT_FROM_EMAIL"], "Музей <m@ya.ru>")
+        self.assertEqual(values["A"], "1")
+
+
+class BiographyParserTests(SimpleTestCase):
+    def test_template(self):
+        data = parse_biography([
+            "Мазурук Илья Павлович", "", "Дата рождения: 7.07.1906", "Место рождения: г. Брест",
+            "Звание: генерал-майор", "Награды: два ордена Ленина", "Боевой путь",
+            "В армии с 1927 г.", "С 1942 г. — начальник Красноярской воздушной трассы.",
+        ], "Мазурук Илья Павлович")
+        self.assertEqual(data["birth_date"], "7.07.1906")
+        self.assertEqual(data["rank"], "генерал-майор")
+        self.assertEqual(data["awards"], "два ордена Ленина")
+        self.assertIn("Красноярской воздушной трассы", data["biography"])
+        self.assertNotIn("Мазурук", data["biography"])
+
+    def test_clean_title(self):
+        self.assertEqual(clean_title("Воспоминания АлСиб 2025-05-30 12_14_09"), "Воспоминания АлСиб")
+        self.assertEqual(clean_title("Карты-схемы,  трасса АлСиб"), "Карты-схемы, трасса АлСиб")
+
+
+@override_settings(MEDIA_ROOT=TMP_MEDIA)
+class ImportDriveTests(TestCase):
+    def setUp(self):
+        import docx
+        self.root = Path(tempfile.mkdtemp(prefix="drive-"))
+        person = self.root / "Музей" / "Шкляров Гавриил Самуилович"
+        person.mkdir(parents=True)
+        d = docx.Document()
+        for line in ["Шкляров Гавриил Самуилович", "Дата рождения: 14.07.1924",
+                     "Звание: младший техник-лейтенант", "Боевой путь", "Старший авиатехник Красноярского аэропорта."]:
+            d.add_paragraph(line)
+        d.save(person / "Шкляров Гавриил Самуилович.docx")
+        (person / "Портрет. 1946 год.png").write_bytes(image_bytes((1600, 2000), "PNG"))
+        (person / "Шкляров Г.С..pdf").write_bytes(b"%PDF-1.4 test")
+        topic = self.root / "Музей 2" / "Трасса АлСиб"
+        topic.mkdir(parents=True)
+        for n in ["Воспоминания АлСиб.pdf", "Воспоминания АлСиб 2025-05-30 12_14_09.pdf",
+                  "Воспоминания АлСиб 2025-05-30 12_03_45.pdf"]:
+            (topic / n).write_bytes(b"%PDF-1.4 test")
+        essays = self.root / "Музей 2" / "Сочинения"
+        essays.mkdir()
+        docx.Document().save(essays / "Мой дедушка.docx")
+
+    def tearDown(self):
+        shutil.rmtree(self.root, ignore_errors=True)
+
+    def test_dry_run_writes_nothing(self):
+        call_command("import_drive", str(self.root), "--dry-run", stdout=io.StringIO())
+        self.assertEqual(Person.objects.count(), 0)
+        self.assertEqual(Document.objects.count(), 0)
+
+    def test_import_hidden_and_idempotent(self):
+        call_command("import_drive", str(self.root), stdout=io.StringIO())
+        p = Person.objects.get()
+        self.assertEqual(p.birth_date, "14.07.1924")
+        self.assertFalse(p.is_published)
+        self.assertTrue(p.portrait.name.endswith(".jpg"))
+        self.assertLessEqual(max(Image.open(p.portrait.path).size), 1200)
+        self.assertEqual(Document.objects.filter(topic="Трасса АлСиб").count(), 3)
+        self.assertFalse(Document.objects.filter(is_published=True).exists())
+        self.assertFalse(Document.objects.filter(topic="Сочинения").exists())
+        call_command("import_drive", str(self.root), stdout=io.StringIO())
+        self.assertEqual(Person.objects.count(), 1)
+        self.assertEqual(Document.objects.count(), 3)
+        self.assertEqual(self.client.get(p.get_absolute_url()).status_code, 404)
+        p.is_published = True
+        p.save()
+        self.assertContains(self.client.get("/people/"), "Шкляров")
+
+
+@override_settings(MEDIA_ROOT=TMP_MEDIA)
+class ImageTests(TestCase):
+    def test_exhibit_photo_resized_and_gps_removed(self):
+        ex = Exhibit.objects.create(title="Фото", image=SimpleUploadedFile("p.jpg", image_bytes(gps=True)))
+        img = Image.open(ex.image.path)
+        self.assertLessEqual(max(img.size), 2400)
+        self.assertNotIn(0x8825, img.getexif())
+
+    def test_panorama_must_be_2_to_1(self):
+        p = Panorama(title="Не панорама", image=SimpleUploadedFile("x.jpg", image_bytes((3000, 2000))))
+        with self.assertRaises(ValidationError):
+            p.full_clean()
+        ok = Panorama(title="Панорама", image=SimpleUploadedFile("y.jpg", image_bytes((4000, 2000))))
+        ok.full_clean()
+
+
+class NotifyTests(TestCase):
+    @override_settings(MAX_BOT_TOKEN="", MUSEUM_NOTIFY_EMAILS=[])
+    def test_silent_without_settings(self):
+        self.assertFalse(notify.notify_admin("t", "x"))
+
+    @override_settings(MAX_BOT_TOKEN="tok", MAX_USER_ID="42", MAX_CHAT_ID="", MAX_API_URL="https://max.test")
+    def test_max_uses_header_not_query(self):
+        with mock.patch("urllib.request.urlopen") as op:
+            op.return_value.__enter__.return_value.read.return_value = b"{}"
+            self.assertTrue(notify.send_max("привет"))
+            req = op.call_args[0][0]
+        self.assertEqual(req.full_url, "https://max.test/messages?user_id=42")
+        self.assertEqual(req.get_header("Authorization"), "tok")
+        self.assertNotIn("tok", req.full_url)
+
+    @override_settings(MAX_BOT_TOKEN="tok", MAX_USER_ID="42", MAX_CHAT_ID="")
+    def test_max_failure_does_not_lose_request(self):
+        with mock.patch("urllib.request.urlopen", side_effect=TimeoutError):
+            resp = self.client.post(reverse("museum:visit"), {
+                "name": "Петров", "phone": "+7999", "people": 3, "consent": "on"})
+        self.assertRedirects(resp, reverse("museum:visit"))
+        self.assertEqual(ExcursionRequest.objects.count(), 1)
+
+
+class HealthTests(TestCase):
+    def test_health(self):
+        data = self.client.get("/health/").json()
+        self.assertEqual(data["status"], "ok")
+        self.assertIn("version", data)

@@ -119,6 +119,20 @@
 </section>
 {% endif %}
 
+{% if people %}
+<section class="section crew" aria-labelledby="crew-title">
+  <div class="container">
+    <header class="section__head">
+      <p class="eyebrow">Экипажи трассы</p>
+      <h2 id="crew-title">Люди трассы Аляска — Сибирь</h2>
+      <p class="muted">{{ people_total }} имён лётчиков, штурманов и техников, собранных музеем.</p>
+    </header>
+    <div class="people people--wall">{% for p in people %}{% include "museum/_person_card.html" %}{% endfor %}</div>
+    <p class="center"><a class="btn btn--ghost" href="{% url 'museum:people' %}">Все люди трассы</a></p>
+  </div>
+</section>
+{% endif %}
+
 {% if timeline %}
 <section class="section route" aria-labelledby="route-title">
   <div class="container">

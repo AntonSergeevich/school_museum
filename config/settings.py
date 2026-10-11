@@ -6,7 +6,10 @@
 import os
 from pathlib import Path
 
+from .envfile import load_env_file
+
 BASE_DIR = Path(__file__).resolve().parent.parent
+load_env_file(BASE_DIR / ".env", os.environ)
 
 
 def env_bool(name, default=False):
@@ -117,6 +120,10 @@ STORAGES = {
 # Панорамы бывают тяжёлыми — разрешаем загрузку до 60 МБ через админку.
 DATA_UPLOAD_MAX_MEMORY_SIZE = 60 * 1024 * 1024
 FILE_UPLOAD_MAX_MEMORY_SIZE = 10 * 1024 * 1024
+# Загруженные файлы раздаёт nginx (группа www-data): без явных прав они
+# создаются 600 и на сайте вместо фото — 403.
+FILE_UPLOAD_PERMISSIONS = 0o640
+FILE_UPLOAD_DIRECTORY_PERMISSIONS = 0o750
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
@@ -127,10 +134,13 @@ X_FRAME_OPTIONS = "DENY"
 SESSION_COOKIE_HTTPONLY = True
 if not DEBUG:
     SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
-    SECURE_SSL_REDIRECT = env_bool("DJANGO_SSL_REDIRECT", True)
-    SESSION_COOKIE_SECURE = True
-    CSRF_COOKIE_SECURE = True
-    SECURE_HSTS_SECONDS = 60 * 60 * 24 * 30
+    # Пока нет сертификата (домен не выбран, сайт открывают по IP), HTTPS
+    # включать нельзя: редирект вёл бы в никуда. install.sh включает его сам.
+    HTTPS_ENABLED = env_bool("DJANGO_HTTPS", False)
+    SECURE_SSL_REDIRECT = HTTPS_ENABLED
+    SESSION_COOKIE_SECURE = HTTPS_ENABLED
+    CSRF_COOKIE_SECURE = HTTPS_ENABLED
+    SECURE_HSTS_SECONDS = 60 * 60 * 24 * 30 if HTTPS_ENABLED else 0
 
 EMAIL_BACKEND = os.environ.get("DJANGO_EMAIL_BACKEND", "django.core.mail.backends.console.EmailBackend")
 EMAIL_HOST = os.environ.get("EMAIL_HOST", "")
@@ -140,6 +150,23 @@ EMAIL_HOST_PASSWORD = os.environ.get("EMAIL_HOST_PASSWORD", "")
 EMAIL_USE_SSL = env_bool("EMAIL_USE_SSL", True)
 DEFAULT_FROM_EMAIL = os.environ.get("DEFAULT_FROM_EMAIL", "museum@localhost")
 MUSEUM_NOTIFY_EMAILS = env_list("MUSEUM_NOTIFY_EMAILS")
+
+# Уведомления в мессенджер MAX. Токен — из раздела бота на платформе MAX,
+# получатель — user_id администратора или chat_id группы (manage.py max_chats).
+MAX_BOT_TOKEN = os.environ.get("MAX_BOT_TOKEN", "")
+MAX_USER_ID = os.environ.get("MAX_USER_ID", "")
+MAX_CHAT_ID = os.environ.get("MAX_CHAT_ID", "")
+MAX_API_URL = os.environ.get("MAX_API_URL", "https://platform-api2.max.ru").rstrip("/")
+
+SITE_URL = os.environ.get("SITE_URL", "").rstrip("/")
+
+LOGGING = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "handlers": {"console": {"class": "logging.StreamHandler"}},
+    "root": {"handlers": ["console"], "level": "WARNING"},
+    "loggers": {"museum": {"handlers": ["console"], "level": "INFO", "propagate": False}},
+}
 
 # Сведения о школе. Источник — открытые реестры и официальный сайт школы;
 # перед запуском сверить с разделом «Сведения об образовательной организации».

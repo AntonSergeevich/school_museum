@@ -1,18 +1,17 @@
-import logging
+import subprocess
+from functools import lru_cache
 
 from django.conf import settings
 from django.contrib import messages
-from django.core.mail import send_mail
 from django.core.paginator import Paginator
 from django.db.models import Count, Q
+from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
 
 from .forms import ExcursionRequestForm
-from .models import AIRCRAFT, Document, Exhibit, Hall, Panorama, TimelineEvent
-
-log = logging.getLogger(__name__)
-
+from .notify import notify_admin
+from .models import AIRCRAFT, Document, Exhibit, Hall, Panorama, Person, TimelineEvent
 
 def published_halls():
     return Hall.objects.filter(is_published=True).annotate(
@@ -28,6 +27,8 @@ def home(request):
         "exhibits_total": Exhibit.published.count(),
         "has_tour": Panorama.objects.filter(is_published=True).exists(),
         "fleet": fleet(),
+        "people": Person.objects.filter(is_published=True).order_by("?")[:12],
+        "people_total": Person.objects.filter(is_published=True).count(),
     })
 
 
@@ -119,23 +120,37 @@ def visit(request):
     form = ExcursionRequestForm(request.POST or None)
     if request.method == "POST" and form.is_valid():
         req = form.save()
-        if settings.MUSEUM_NOTIFY_EMAILS:
-            try:
-                send_mail(
-                    "Новая заявка на экскурсию в музей",
-                    f"{req.name}, {req.phone}, {req.group}, {req.people} чел., дата: {req.desired_date or '—'}\n"
-                    f"{request.build_absolute_uri(reverse('admin:museum_excursionrequest_change', args=[req.pk]))}",
-                    settings.DEFAULT_FROM_EMAIL, settings.MUSEUM_NOTIFY_EMAILS, fail_silently=False,
-                )
-            except Exception:  # письмо — не критично, заявка уже сохранена
-                log.exception("Не удалось отправить уведомление о заявке")
+        notify_admin(
+            "✈️ Новая заявка на экскурсию",
+            f"{req.name}, {req.phone}{', ' + req.email if req.email else ''}\n"
+            f"{req.group or 'без класса'}, {req.people} чел., дата: {req.desired_date or 'не указана'}\n"
+            f"{req.message}\n\n"
+            f"{request.build_absolute_uri(reverse('admin:museum_excursionrequest_change', args=[req.pk]))}",
+        )
         messages.success(request, "Заявка принята! Мы свяжемся с вами, чтобы согласовать время экскурсии.")
         return redirect("museum:visit")
     return render(request, "museum/visit.html", {"form": form})
 
 
 def documents(request):
-    return render(request, "museum/documents.html", {"documents": Document.objects.all()})
+    return render(request, "museum/documents.html", {"documents": Document.objects.filter(is_published=True)})
+
+
+def people(request):
+    qs = Person.objects.filter(is_published=True)
+    q = request.GET.get("q", "").strip()
+    if q:
+        qs = qs.filter(Q(full_name__icontains=q) | Q(rank__icontains=q) | Q(biography__icontains=q))
+    letters = sorted({p.full_name[:1].upper() for p in Person.objects.filter(is_published=True).only("full_name")})
+    letter = request.GET.get("letter", "")
+    if letter:
+        qs = qs.filter(full_name__istartswith=letter)
+    return render(request, "museum/people.html", {"people": qs, "q": q, "letters": letters, "letter": letter})
+
+
+def person_detail(request, slug):
+    person = get_object_or_404(Person, slug=slug, is_published=True)
+    return render(request, "museum/person_detail.html", {"person": person})
 
 
 def privacy(request):
@@ -148,3 +163,28 @@ def consent(request):
 
 def accessibility(request):
     return render(request, "museum/accessibility.html")
+
+
+@lru_cache(maxsize=1)
+def code_version():
+    """Версия кода: её сверяет проверка после автодеплоя (дошёл ли пуш до сервера)."""
+    version_file = settings.BASE_DIR / "VERSION"
+    if version_file.exists():
+        return version_file.read_text().strip()
+    try:
+        return subprocess.run(["git", "rev-parse", "HEAD"], cwd=settings.BASE_DIR, capture_output=True,
+                              text=True, timeout=3).stdout.strip() or "unknown"
+    except (OSError, subprocess.SubprocessError):
+        return "unknown"
+
+
+def health(request):
+    from django.db import connection
+    try:
+        connection.ensure_connection()
+        db = "ok"
+    except Exception:
+        db = "error"
+    status = 200 if db == "ok" else 503
+    return JsonResponse({"status": "ok" if status == 200 else "error", "db": db, "version": code_version()},
+                        status=status)

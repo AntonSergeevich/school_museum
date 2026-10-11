@@ -3,7 +3,7 @@ from django.urls import reverse
 from django.utils.html import format_html
 
 from .models import (Document, ExcursionRequest, Exhibit, ExhibitImage, Hall, Hotspot,
-                     Panorama, TimelineEvent)
+                     Panorama, Person, TimelineEvent)
 
 admin.site.site_header = "Кабинет музея истории авиации — школа № 149"
 admin.site.site_title = "Кабинет музея"
@@ -107,8 +107,45 @@ class TimelineEventAdmin(admin.ModelAdmin):
 
 @admin.register(Document)
 class DocumentAdmin(admin.ModelAdmin):
-    list_display = ("title", "category", "published_at", "order")
-    list_filter = ("category",)
+    list_display = ("title", "category", "topic", "published_at", "is_published", "order")
+    list_editable = ("is_published",)
+    list_filter = ("category", "topic", "is_published")
+    search_fields = ("title", "topic")
+
+
+@admin.register(Person)
+class PersonAdmin(admin.ModelAdmin):
+    list_display = ("preview", "full_name", "rank", "birth_date", "is_published", "publication_checked")
+    list_display_links = ("preview", "full_name")
+    list_filter = ("is_published", "publication_checked", "group")
+    search_fields = ("full_name", "rank", "biography")
+    prepopulated_fields = {"slug": ("full_name",)}
+    readonly_fields = ("preview_big",)
+    actions = ("publish_checked",)
+    save_on_top = True
+    fieldsets = (
+        (None, {"fields": ("full_name", "slug", "group", "rank", "birth_date", "birth_place")}),
+        ("Портрет", {"fields": ("portrait", "preview_big")}),
+        ("Текст", {"fields": ("awards", "biography", "source_file")}),
+        ("Публикация", {"fields": ("publication_checked", "is_published", "order")}),
+    )
+
+    @admin.display(description="Фото")
+    def preview(self, obj):
+        return thumb(obj.portrait, 48)
+
+    @admin.display(description="Превью")
+    def preview_big(self, obj):
+        return thumb(obj.portrait, 260)
+
+    @admin.action(description="Опубликовать (только с отметкой «Публикация согласована»)")
+    def publish_checked(self, request, queryset):
+        n = queryset.filter(publication_checked=True).update(is_published=True)
+        skipped = queryset.count() - n
+        msg = f"Опубликовано: {n}."
+        if skipped:
+            msg += f" Пропущено без согласования: {skipped}."
+        self.message_user(request, msg)
 
 
 @admin.register(ExcursionRequest)

@@ -12,7 +12,7 @@
       <h2>{{ g.grouper }}</h2>
       <ul class="docs">{% for d in g.list %}
         <li><a href="{{ d.file.url }}" target="_blank" rel="noopener"><span class="docs__icon" aria-hidden="true">PDF</span>
-          <span>{{ d.title }}<small>размещён {{ d.published_at|date:"d.m.Y" }}</small></span></a></li>
+          <span>{{ d.title }}<small>{% if d.topic %}{{ d.topic }} · {% endif %}размещён {{ d.published_at|date:"d.m.Y" }}</small></span></a></li>
       {% endfor %}</ul>
     {% empty %}
       <p class="muted">Документы появятся после загрузки в кабинете: положение о музее, паспорт музея, программа «Мир музея», приказ о назначении руководителя.</p>

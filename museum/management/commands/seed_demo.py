@@ -12,7 +12,7 @@ from django.core.files.base import ContentFile
 from django.core.management.base import BaseCommand
 from PIL import Image, ImageDraw, ImageFilter
 
-from museum.models import Exhibit, Hall, Hotspot, Panorama, TimelineEvent
+from museum.models import Exhibit, Hall, Hotspot, Panorama, Person, TimelineEvent
 
 DEMO_NOTE = "\n\nДемонстрационное описание — замените его в кабине администратора."
 
@@ -46,6 +46,16 @@ TIMELINE = [
     ("1968", "Первый полёт Ту-154", "Самолёт стал основой гражданской авиации страны на десятилетия."),
     ("1980", "Аэропорт Емельяново", "Открыт новый аэропорт Красноярска."),
     ("2001", "Основан школьный музей", "В школе № 149 создан музей истории авиации Красноярского края."),
+]
+
+
+PEOPLE = [
+    ("Мазурук Илья Павлович", "генерал-майор, Герой Советского Союза", "7.07.1906",
+     "С 1942 г. — начальник Красноярской воздушной трассы, с 1943 г. — командир 1-й перегоночной авиационной "
+     "дивизии: руководил перегонкой самолётов с Аляски в Красноярск."),
+    ("Шкляров Гавриил Самуилович", "младший техник-лейтенант (старший авиатехник)", "14.07.1924",
+     "С декабря 1943 по август 1945 г. — старший авиатехник Красноярского аэропорта воздушной трассы "
+     "«Красноярск — Уэлькаль»."),
 ]
 
 
@@ -99,6 +109,10 @@ class Command(BaseCommand):
             })
         for i, (year, title, text) in enumerate(TIMELINE):
             TimelineEvent.objects.get_or_create(year=year, title=title, defaults={"text": text, "order": i})
+
+        for name, rank, born, bio in PEOPLE:
+            Person.objects.get_or_create(full_name=name, defaults={
+                "rank": rank, "birth_date": born, "biography": bio + DEMO_NOTE, "is_published": True})
 
         if not Panorama.objects.exists():
             a = Panorama(title="Вход в музей (демо)", hall=halls["История музея"], is_start=True, order=0)

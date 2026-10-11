@@ -1,7 +1,10 @@
+from django.core.exceptions import ValidationError
 from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
 from django.urls import reverse
 from django.utils.text import slugify
+
+from .images import NormalizedImagesMixin
 
 TRANSLIT = str.maketrans({
     "а": "a", "б": "b", "в": "v", "г": "g", "д": "d", "е": "e", "ё": "e", "ж": "zh",
@@ -33,7 +36,9 @@ class SluggedModel(models.Model):
         super().save(*args, **kwargs)
 
 
-class Hall(SluggedModel):
+class Hall(NormalizedImagesMixin, SluggedModel):
+    IMAGE_LIMITS = {"cover": 2400}
+
     """Раздел экспозиции. На сайте показывается как «рейс» на табло вылетов."""
 
     title = models.CharField("Название раздела", max_length=120)
@@ -74,7 +79,9 @@ AIRCRAFT = [
 ]
 
 
-class Exhibit(SluggedModel):
+class Exhibit(NormalizedImagesMixin, SluggedModel):
+    IMAGE_LIMITS = {"image": 2400}
+
     title = models.CharField("Название экспоната", max_length=200)
     hall = models.ForeignKey(Hall, verbose_name="Раздел", on_delete=models.SET_NULL,
                              null=True, blank=True, related_name="exhibits")
@@ -118,7 +125,9 @@ class Exhibit(SluggedModel):
         return self.inventory_number or f"КП-{self.pk or 0:04d}"
 
 
-class ExhibitImage(models.Model):
+class ExhibitImage(NormalizedImagesMixin, models.Model):
+    IMAGE_LIMITS = {"image": 2400}
+
     exhibit = models.ForeignKey(Exhibit, on_delete=models.CASCADE, related_name="images")
     image = models.ImageField("Фото", upload_to="exhibits/gallery/")
     caption = models.CharField("Подпись", max_length=200, blank=True)
@@ -133,8 +142,12 @@ class ExhibitImage(models.Model):
         return self.caption or f"Фото {self.pk}"
 
 
-class Panorama(SluggedModel):
+class Panorama(NormalizedImagesMixin, SluggedModel):
     """Сферическая панорама 360° (эквидистантная проекция, соотношение 2:1)."""
+
+    # Pannellum делит панораму на две текстуры; у большинства телефонов предел
+    # текстуры 4096 px, поэтому шире 8192 px панорама на телефоне не покажется.
+    IMAGE_LIMITS = {"image": 8192}
 
     title = models.CharField("Название точки обзора", max_length=120)
     hall = models.ForeignKey(Hall, verbose_name="Раздел", on_delete=models.SET_NULL,
@@ -157,6 +170,16 @@ class Panorama(SluggedModel):
 
     def __str__(self):
         return self.title
+
+    def clean(self):
+        if self.image and not getattr(self.image, "_committed", True):
+            from PIL import Image
+            self.image.seek(0)
+            w, h = Image.open(self.image).size
+            self.image.seek(0)
+            if abs(w / h - 2) > 0.05:
+                raise ValidationError({"image": f"Нужна сферическая панорама 2:1, а у файла {w}×{h}. "
+                                                "Обычное или широкоугольное фото в тур не подходит."})
 
     def save(self, *args, **kwargs):
         super().save(*args, **kwargs)
@@ -211,19 +234,22 @@ class Document(models.Model):
     CATEGORIES = [
         ("museum", "Документы музея"),
         ("program", "Программы"),
+        ("archive", "Архивные материалы"),
         ("pd", "Персональные данные"),
         ("other", "Прочее"),
     ]
     title = models.CharField("Название", max_length=255)
     category = models.CharField("Категория", max_length=20, choices=CATEGORIES, default="museum")
+    topic = models.CharField("Тема", max_length=120, blank=True, help_text="Например, «Трасса АлСиб»")
     file = models.FileField("Файл (PDF)", upload_to="documents/")
+    is_published = models.BooleanField("Опубликован", default=True)
     published_at = models.DateField("Дата размещения")
     order = models.PositiveIntegerField("Порядок", default=0)
 
     class Meta:
         verbose_name = "документ"
         verbose_name_plural = "документы"
-        ordering = ["category", "order", "-published_at"]
+        ordering = ["category", "topic", "order", "-published_at"]
 
     def __str__(self):
         return self.title
@@ -251,3 +277,47 @@ class ExcursionRequest(models.Model):
 
     def __str__(self):
         return f"{self.name}, {self.created_at:%d.%m.%Y}"
+
+
+class Person(NormalizedImagesMixin, SluggedModel):
+    """Лётчики, техники и другие участники Красноярской воздушной трассы."""
+
+    IMAGE_LIMITS = {"portrait": 1200}
+
+    full_name = models.CharField("ФИО", max_length=160)
+    group = models.CharField("Раздел", max_length=120, default="Люди трассы АлСиб")
+    rank = models.CharField("Звание / должность", max_length=200, blank=True)
+    birth_date = models.CharField("Дата рождения", max_length=40, blank=True)
+    birth_place = models.CharField("Место рождения", max_length=200, blank=True)
+    awards = models.TextField("Награды", blank=True)
+    biography = models.TextField("Боевой путь / биография", blank=True)
+    portrait = models.ImageField("Портрет", upload_to="people/", blank=True)
+    source_file = models.FileField("Исходный документ (PDF)", upload_to="people/docs/", blank=True)
+    is_published = models.BooleanField("Опубликован", default=False,
+                                       help_text="Импортированные записи скрыты, пока их не проверит управляющий музеем")
+    publication_checked = models.BooleanField(
+        "Публикация согласована", default=False,
+        help_text="Текст сверен, есть основание для публикации: согласие родственников "
+                  "или сведения взяты из опубликованных источников (152-ФЗ, ст. 10.1)")
+    order = models.PositiveIntegerField("Порядок", default=0)
+    created_at = models.DateTimeField("Добавлен", auto_now_add=True)
+
+    class Meta:
+        verbose_name = "человек трассы"
+        verbose_name_plural = "люди трассы"
+        ordering = ["order", "full_name"]
+
+    @property
+    def title(self):  # для автогенерации slug
+        return self.full_name
+
+    def __str__(self):
+        return self.full_name
+
+    def get_absolute_url(self):
+        return reverse("museum:person", args=[self.slug])
+
+    @property
+    def initials(self):
+        parts = self.full_name.split()
+        return "".join(p[0] for p in parts[:2]).upper()
