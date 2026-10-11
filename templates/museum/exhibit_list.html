@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block title %}Экспонаты{% endblock %}
+{% block content %}
+<section class="section page-head">
+  <div class="container">
+    <p class="eyebrow">Фонд музея</p>
+    <h1>Экспонаты</h1>
+    <form class="filters" method="get" role="search">
+      <label class="visually-hidden" for="q">Поиск по экспонатам</label>
+      <input id="q" type="search" name="q" value="{{ q }}" placeholder="Поиск: самописец, форма, прибор…">
+      <div class="chips" role="group" aria-label="Раздел">
+        <a class="chip {% if not hall_slug %}is-active{% endif %}" href="?q={{ q|urlencode }}">Все</a>
+        {% for h in halls %}<a class="chip {% if hall_slug == h.slug %}is-active{% endif %}" href="?hall={{ h.slug }}&q={{ q|urlencode }}">{{ h.title }} <small>{{ h.n }}</small></a>{% endfor %}
+      </div>
+    </form>
+  </div>
+</section>
+<section class="section section--tight">
+  <div class="container">
+    <div class="tickets">
+      {% for ex in page %}{% include "museum/_ticket.html" with ex=ex %}
+      {% empty %}<p class="muted">Ничего не найдено. Попробуйте другой запрос.</p>{% endfor %}
+    </div>
+    {% if page.has_other_pages %}
+    <nav class="pager" aria-label="Страницы">
+      {% if page.has_previous %}<a href="?page={{ page.previous_page_number }}&q={{ q|urlencode }}&hall={{ hall_slug }}">← Назад</a>{% endif %}
+      <span>{{ page.number }} из {{ page.paginator.num_pages }}</span>
+      {% if page.has_next %}<a href="?page={{ page.next_page_number }}&q={{ q|urlencode }}&hall={{ hall_slug }}">Вперёд →</a>{% endif %}
+    </nav>
+    {% endif %}
+  </div>
+</section>
+{% endblock %}

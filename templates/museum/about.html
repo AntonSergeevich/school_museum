@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block title %}О музее{% endblock %}
+{% block content %}
+<section class="section page-head">
+  <div class="container narrow">
+    <p class="eyebrow">О музее</p>
+    <h1>{{ MUSEUM.name }} <span class="accent">{{ MUSEUM.name_dedication }}</span></h1>
+    <p class="lead">Музей создан в {{ MUSEUM.founded }} году при {{ MUSEUM.school_short }} и стал одним из немногих
+      музеев авиации в Красноярском крае. На его базе проходят уроки, классные часы и занятия по программе
+      внеурочной деятельности «Мир музея».</p>
+    <div class="prose">
+      <h2>Чем занимается музей</h2>
+      <ul>
+        <li>сохраняет историю гражданской и военной авиации Красноярского края;</li>
+        <li>проводит экскурсии, уроки мужества и встречи с ветеранами авиации;</li>
+        <li>ведёт исследовательскую и проектную работу с учениками;</li>
+        <li>помогает с профориентацией: лётчик, штурман, авиатехник, диспетчер.</li>
+      </ul>
+      <h2>А. М. Маркирьев</h2>
+      <p class="muted">Биография человека, чьё имя носит музей, будет размещена после согласования текста с музеем.</p>
+    </div>
+  </div>
+</section>
+{% if timeline %}
+<section class="section section--tight">
+  <div class="container narrow">
+    <h2>Летопись</h2>
+    <ol class="vline">{% for ev in timeline %}<li class="reveal"><b>{{ ev.year }}</b><h3>{{ ev.title }}</h3>{% if ev.text %}<p>{{ ev.text }}</p>{% endif %}</li>{% endfor %}</ol>
+  </div>
+</section>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,16 @@
+<a class="ticket reveal" href="{{ ex.get_absolute_url }}">
+  <div class="ticket__img">
+    {% if ex.image %}<img src="{{ ex.image.url }}" alt="{{ ex.title }}" loading="lazy">
+    {% else %}<div class="ticket__ph" aria-hidden="true"><svg viewBox="0 0 48 48"><path d="M6 27l14-3 6-14h4l-2 13 14-3 2 2-16 6-4 12h-3l1-10-15 3z" fill="currentColor"/></svg></div>{% endif %}
+  </div>
+  <div class="ticket__body">
+    <div class="ticket__meta"><span>ПОСАДОЧНЫЙ ТАЛОН</span><span class="mono">{{ ex.ticket_no }}</span></div>
+    <h3>{{ ex.title }}</h3>
+    {% if ex.short %}<p>{{ ex.short|truncatechars:120 }}</p>{% endif %}
+    <div class="ticket__stub">
+      <div><small>РЕЙС</small><b>{{ ex.hall.code|default:"—" }}</b></div>
+      <div><small>ВРЕМЯ</small><b>{{ ex.period|default:"—" }}</b></div>
+      <div class="barcode" aria-hidden="true"></div>
+    </div>
+  </div>
+</a>

@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block title %}Запись на экскурсию{% endblock %}
+{% block content %}
+<section class="section page-head">
+  <div class="container visit">
+    <div>
+      <p class="eyebrow">Регистрация на рейс</p>
+      <h1>Запись на экскурсию</h1>
+      <p class="lead">Оставьте заявку, и мы свяжемся с вами, чтобы согласовать дату и время. Экскурсии бесплатные.</p>
+      <ul class="plain contact-list">
+        <li>📍 {{ MUSEUM.address }}</li>
+        <li>☎ <a href="tel:{{ MUSEUM.phone|cut:' '|cut:'('|cut:')'|cut:'-' }}">{{ MUSEUM.phone }}</a></li>
+        <li>✉ <a href="mailto:{{ MUSEUM.email }}">{{ MUSEUM.email }}</a></li>
+      </ul>
+    </div>
+    <form method="post" class="form boarding" novalidate>
+      {% csrf_token %}
+      <div class="boarding__head"><span>ПОСАДКА</span><span class="mono">RA-149</span></div>
+      {% for field in form %}
+        {% if field.name == "website" %}<div class="hp" aria-hidden="true">{{ field }}</div>
+        {% elif field.name == "consent" %}
+        <div class="field field--check">
+          {{ field }} <label for="{{ field.id_for_label }}">Я даю <a href="{% url 'museum:consent' %}" target="_blank">согласие на обработку персональных данных</a> и ознакомлен(а) с <a href="{% url 'museum:privacy' %}" target="_blank">Политикой</a>. Если мне нет 14 лет, заявку отправляет родитель или учитель.</label>
+          {% for e in field.errors %}<p class="field__error">{{ e }}</p>{% endfor %}
+        </div>
+        {% else %}
+        <div class="field">
+          <label for="{{ field.id_for_label }}">{{ field.label }}{% if field.field.required %} <span aria-hidden="true">*</span>{% endif %}</label>
+          {{ field }}
+          {% for e in field.errors %}<p class="field__error">{{ e }}</p>{% endfor %}
+        </div>
+        {% endif %}
+      {% endfor %}
+      <button class="btn btn--glow btn--block" type="submit">Отправить заявку</button>
+    </form>
+  </div>
+</section>
+{% endblock %}

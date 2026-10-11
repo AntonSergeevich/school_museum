@@ -1,0 +1,113 @@
+{% load static %}<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>{% block title %}{{ MUSEUM.name }}{% endblock %} — {{ MUSEUM.school_short }}</title>
+  <meta name="description" content="{% block description %}Виртуальный музей истории авиации Красноярского края {{ MUSEUM.name_dedication }} при {{ MUSEUM.school_short }}: экспонаты, виртуальный тур 360°, запись на экскурсию.{% endblock %}">
+  <meta name="theme-color" content="#070d22">
+  <link rel="icon" href="{% static 'img/favicon.svg' %}" type="image/svg+xml">
+  <link rel="stylesheet" href="{% static 'css/main.css' %}">
+  {% block head %}{% endblock %}
+  <script>
+    /* Применяем настройки версии для слабовидящих до отрисовки, чтобы не мигало */
+    try { var a = JSON.parse(localStorage.getItem("a11y") || "null");
+      if (a) { var d = document.documentElement; d.dataset.a11y = "on";
+        d.dataset.a11yFont = a.font || "1"; d.dataset.a11yScheme = a.scheme || "bw";
+        d.dataset.a11yImages = a.images || "on"; } } catch (e) {}
+  </script>
+</head>
+<body class="{% block body_class %}{% endblock %}">
+<a class="skip" href="#main">Перейти к содержимому</a>
+
+<div class="a11y-panel" id="a11y-panel" hidden aria-label="Настройки версии для слабовидящих">
+  <div class="container a11y-panel__row">
+    <div role="group" aria-label="Размер шрифта">
+      <span>Шрифт:</span>
+      <button type="button" data-a11y-font="1" aria-label="Обычный шрифт">А</button>
+      <button type="button" data-a11y-font="2" aria-label="Крупный шрифт" style="font-size:1.25em">А</button>
+      <button type="button" data-a11y-font="3" aria-label="Очень крупный шрифт" style="font-size:1.5em">А</button>
+    </div>
+    <div role="group" aria-label="Цветовая схема">
+      <span>Цвет:</span>
+      <button type="button" data-a11y-scheme="bw" class="sw sw--bw" aria-label="Чёрным по белому">Ц</button>
+      <button type="button" data-a11y-scheme="wb" class="sw sw--wb" aria-label="Белым по чёрному">Ц</button>
+      <button type="button" data-a11y-scheme="blue" class="sw sw--blue" aria-label="Тёмно-синим по голубому">Ц</button>
+    </div>
+    <div role="group" aria-label="Изображения">
+      <span>Изображения:</span>
+      <button type="button" data-a11y-images="on">Вкл</button>
+      <button type="button" data-a11y-images="off">Выкл</button>
+    </div>
+    <button type="button" class="a11y-off" data-a11y-off>Обычная версия сайта</button>
+  </div>
+</div>
+
+<header class="site-header" id="top">
+  <div class="container site-header__row">
+    <a class="brand" href="{% url 'museum:home' %}" aria-label="На главную">
+      <svg class="brand__mark" viewBox="0 0 48 48" aria-hidden="true"><circle cx="24" cy="24" r="22" fill="none" stroke="currentColor" stroke-width="2" opacity=".35"/><path d="M6 27l14-3 6-14h4l-2 13 14-3 2 2-16 6-4 12h-3l1-10-15 3z" fill="currentColor"/></svg>
+      <span class="brand__text"><b>Музей авиации</b><small>школа № 149 · Красноярск</small></span>
+    </a>
+    <nav class="nav" id="nav" aria-label="Основное меню">
+      <a href="{% url 'museum:tour' %}" {% if request.resolver_match.url_name == 'tour' %}aria-current="page"{% endif %}>Тур 360°</a>
+      <a href="{% url 'museum:exhibits' %}" {% if request.resolver_match.url_name == 'exhibits' or request.resolver_match.url_name == 'exhibit' %}aria-current="page"{% endif %}>Экспонаты</a>
+      <a href="{% url 'museum:about' %}" {% if request.resolver_match.url_name == 'about' %}aria-current="page"{% endif %}>О музее</a>
+      <a href="{% url 'museum:documents' %}" {% if request.resolver_match.url_name == 'documents' %}aria-current="page"{% endif %}>Документы</a>
+      <a class="btn btn--sm" href="{% url 'museum:visit' %}">Записаться на экскурсию</a>
+    </nav>
+    <button class="icon-btn" type="button" data-a11y-toggle aria-controls="a11y-panel" title="Версия для слабовидящих">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5C6 5 2 12 2 12s4 7 10 7 10-7 10-7-4-7-10-7zm0 11a4 4 0 110-8 4 4 0 010 8z" fill="currentColor"/></svg>
+      <span class="visually-hidden">Версия для слабовидящих</span>
+    </button>
+    <button class="icon-btn burger" type="button" aria-controls="nav" aria-expanded="false" data-burger>
+      <span></span><span></span><span></span><span class="visually-hidden">Меню</span>
+    </button>
+  </div>
+</header>
+
+<main id="main">
+  {% if messages %}<div class="container">{% for m in messages %}<div class="flash flash--{{ m.tags }}" role="status">{{ m }}</div>{% endfor %}</div>{% endif %}
+  {% block content %}{% endblock %}
+</main>
+
+<footer class="site-footer">
+  <div class="container site-footer__grid">
+    <div>
+      <p class="site-footer__title">{{ MUSEUM.name }} {{ MUSEUM.name_dedication }}</p>
+      <p>Музей образовательной организации {{ MUSEUM.school_full }}. Основан в {{ MUSEUM.founded }} году.</p>
+      <p><a href="{{ MUSEUM.school_site }}" rel="noopener">Официальный сайт школы</a> ·
+         <a href="{{ MUSEUM.school_info_url }}" rel="noopener">Сведения об образовательной организации</a></p>
+    </div>
+    <div>
+      <p class="site-footer__title">Контакты</p>
+      <address>{{ MUSEUM.address }}<br>
+        <a href="tel:{{ MUSEUM.phone|cut:' '|cut:'('|cut:')'|cut:'-' }}">{{ MUSEUM.phone }}</a><br>
+        <a href="mailto:{{ MUSEUM.email }}">{{ MUSEUM.email }}</a></address>
+    </div>
+    <div>
+      <p class="site-footer__title">Информация</p>
+      <ul class="plain">
+        <li><a href="{% url 'museum:privacy' %}">Политика обработки персональных данных</a></li>
+        <li><a href="{% url 'museum:accessibility' %}">Доступность сайта</a></li>
+        <li><a href="{% url 'museum:documents' %}">Документы музея</a></li>
+        <li><a href="https://www.gosuslugi.ru/" rel="noopener">Госуслуги</a></li>
+      </ul>
+    </div>
+  </div>
+  <div class="container site-footer__bottom">
+    <span>© {% now "Y" %} {{ MUSEUM.school_short }}. Материалы музея охраняются законом (ГК РФ, ч. 4).</span>
+    <span class="age" title="Возрастная категория информационной продукции (436-ФЗ)">{{ MUSEUM.age_mark }}</span>
+  </div>
+</footer>
+
+<div class="cookie" id="cookie" hidden role="region" aria-label="Уведомление об использовании cookie">
+  <p>Сайт использует только технически необходимые cookie.
+    Продолжая работу, вы соглашаетесь с <a href="{% url 'museum:privacy' %}">Политикой обработки персональных данных</a>.</p>
+  <button class="btn btn--sm" type="button" data-cookie-ok>Понятно</button>
+</div>
+
+<script src="{% static 'js/main.js' %}" defer></script>
+{% block scripts %}{% endblock %}
+</body>
+</html>

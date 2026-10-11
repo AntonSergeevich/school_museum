@@ -1,0 +1,4 @@
+User-agent: *
+Disallow: /cabinet/
+Disallow: /visit/
+Sitemap: {{ request.scheme }}://{{ request.get_host }}/sitemap.xml

@@ -1,0 +1,40 @@
+{% extends "base.html" %}{% load static %}
+{% block title %}Виртуальный тур 360°{% endblock %}
+{% block body_class %}page-tour{% endblock %}
+{% block head %}<link rel="stylesheet" href="{% static 'vendor/pannellum/pannellum.css' %}">{% endblock %}
+{% block content %}
+<section class="tour">
+  {% if first_scene %}
+  <div class="tour__viewer" id="pano" aria-label="Панорама 360°. Перетаскивайте мышью или пальцем, чтобы осмотреться"></div>
+  <div class="tour__overlay">
+    <div class="tour__title"><p class="eyebrow">Виртуальный тур</p><h1 data-scene-title>{{ panoramas.0.title }}</h1></div>
+    {% if panoramas|length > 1 %}
+    <nav class="tour__scenes" aria-label="Точки обзора">
+      {% for p in panoramas %}<button type="button" data-scene="{{ p.slug }}"><img src="{{ p.image.url }}" alt="" loading="lazy"><span>{{ p.title }}</span></button>{% endfor %}
+    </nav>
+    {% endif %}
+    {% if markup %}<div class="markup" role="status">Режим разметки: кликните по панораме — координаты появятся здесь. <b data-markup-out>—</b></div>{% endif %}
+  </div>
+  <aside class="exhibit-card" id="exhibit-card" hidden aria-live="polite">
+    <button type="button" class="exhibit-card__close" aria-label="Закрыть">×</button>
+    <img alt="" data-card-img><h2 data-card-title></h2><p data-card-text></p>
+    <a class="btn btn--sm" data-card-link href="#">Подробнее об экспонате</a>
+  </aside>
+  {{ scenes|json_script:"scenes-data" }}
+  {{ first_scene|json_script:"first-scene" }}
+  {% else %}
+  <div class="container section tour-empty">
+    <div class="tour-empty__globe" aria-hidden="true"></div>
+    <p class="eyebrow">Виртуальный тур</p>
+    <h1>Панорамы готовятся к вылету</h1>
+    <p class="muted">Администратор ещё не загрузил панорамы 360°. Загрузить их можно в кабинете: «Панорамы 360°» → «Добавить».</p>
+    <a class="btn" href="{% url 'museum:exhibits' %}">Пока посмотреть экспонаты</a>
+  </div>
+  {% endif %}
+</section>
+{% endblock %}
+{% block scripts %}{% if first_scene %}
+<script src="{% static 'vendor/pannellum/pannellum.js' %}"></script>
+<script>window.TOUR_MARKUP = {{ markup|yesno:"true,false" }};</script>
+<script src="{% static 'js/tour.js' %}"></script>
+{% endif %}{% endblock %}

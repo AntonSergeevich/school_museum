@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% block title %}Рейс не найден{% endblock %}
+{% block content %}
+<section class="section page-head center">
+  <div class="container narrow">
+    <p class="eyebrow mono">ОШИБКА 404</p>
+    <h1>Рейс не найден</h1>
+    <p class="lead">Похоже, этот рейс отменён или перенесён. Вернитесь в терминал.</p>
+    <a class="btn" href="{% url 'museum:home' %}">На главную</a>
+  </div>
+</section>
+{% endblock %}

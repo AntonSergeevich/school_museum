@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% block title %}{{ exhibit.title }}{% endblock %}
+{% block description %}{{ exhibit.short|default:exhibit.title }}{% endblock %}
+{% block content %}
+<article class="section exhibit">
+  <div class="container">
+    <nav class="crumbs" aria-label="Навигационная цепочка">
+      <a href="{% url 'museum:home' %}">Главная</a> / <a href="{% url 'museum:exhibits' %}">Экспонаты</a>
+      {% if exhibit.hall %} / <a href="{{ exhibit.hall.get_absolute_url }}">{{ exhibit.hall.title }}</a>{% endif %}
+    </nav>
+    <div class="exhibit__grid">
+      <div class="exhibit__media">
+        {% if exhibit.image %}
+        <button type="button" class="zoomable" data-zoom="{{ exhibit.image.url }}" aria-label="Увеличить фото">
+          <img src="{{ exhibit.image.url }}" alt="{{ exhibit.title }}">
+        </button>
+        {% else %}<div class="ticket__ph ticket__ph--big" aria-hidden="true"><svg viewBox="0 0 48 48"><path d="M6 27l14-3 6-14h4l-2 13 14-3 2 2-16 6-4 12h-3l1-10-15 3z" fill="currentColor"/></svg></div>{% endif %}
+        {% if images %}
+        <div class="thumbs">
+          {% for im in images %}<button type="button" class="zoomable" data-zoom="{{ im.image.url }}" aria-label="Увеличить: {{ im.caption|default:'фото' }}"><img src="{{ im.image.url }}" alt="{{ im.caption }}" loading="lazy"></button>{% endfor %}
+        </div>
+        {% endif %}
+      </div>
+      <div class="exhibit__info">
+        <p class="eyebrow">{{ exhibit.hall.title|default:"Фонд музея" }}</p>
+        <h1>{{ exhibit.title }}</h1>
+        <dl class="specs">
+          {% if exhibit.period %}<div><dt>Время</dt><dd>{{ exhibit.period }}</dd></div>{% endif %}
+          <div><dt>Номер</dt><dd class="mono">{{ exhibit.ticket_no }}</dd></div>
+          {% if exhibit.provenance %}<div><dt>Поступление</dt><dd>{{ exhibit.provenance }}</dd></div>{% endif %}
+        </dl>
+        <div class="prose">{{ exhibit.description|linebreaks }}</div>
+        {% if hotspot %}<a class="btn" href="{% url 'museum:tour' %}?scene={{ hotspot.panorama.slug }}">Найти в зале 360°</a>{% endif %}
+      </div>
+    </div>
+    {% if neighbours %}
+    <h2 class="section__subtitle">Рядом в экспозиции</h2>
+    <div class="tickets">{% for ex in neighbours %}{% include "museum/_ticket.html" with ex=ex %}{% endfor %}</div>
+    {% endif %}
+  </div>
+</article>
+<dialog class="lightbox" id="lightbox"><img alt=""><button type="button" aria-label="Закрыть">×</button></dialog>
+{% endblock %}

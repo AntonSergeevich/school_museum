@@ -1,0 +1,152 @@
+{% extends "base.html" %}{% load static %}
+{% block body_class %}page-home{% endblock %}
+{% block content %}
+
+<section class="hero" aria-labelledby="hero-title">
+  <canvas class="hero__sky" id="sky" aria-hidden="true"></canvas>
+  <div class="hero__glow" aria-hidden="true"></div>
+  {% include "museum/_aircraft_sprites.html" %}
+  <div class="fleet" id="fleet" aria-hidden="true">
+    {% for ac in fleet %}
+    <a class="fleet__plane fleet__plane--{{ ac.kind }}" {% if ac.url %}href="{{ ac.url }}"{% endif %} tabindex="-1" data-kind="{{ ac.kind }}">
+      <span class="fleet__trail"></span>
+      <svg class="fleet__svg"><use href="#ac-{{ ac.kind }}"/></svg>
+      <span class="fleet__tag">{{ ac.label }}</span>
+    </a>
+    {% endfor %}
+  </div>
+
+  <div class="container hero__content">
+    <p class="eyebrow"><span class="dot"></span> Посадка открыта · с {{ MUSEUM.founded }} года</p>
+    <h1 id="hero-title" class="hero__title">
+      <span class="line">Музей истории</span>
+      <span class="line accent">авиации</span>
+      <span class="line">Красноярского края</span>
+    </h1>
+    <p class="hero__lead">Школьный музей {{ MUSEUM.name_dedication }}. Сядьте в кабину Ил-62, пройдитесь по залу
+      в панораме 360° и узнайте, как небо Сибири связало страну.</p>
+    <div class="hero__cta">
+      <a class="btn btn--glow" href="{% url 'museum:tour' %}">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2a10 10 0 100 20 10 10 0 000-20zm-2 14.5v-9l7 4.5z" fill="currentColor"/></svg>
+        Начать виртуальный тур
+      </a>
+      <a class="btn btn--ghost" href="{% url 'museum:exhibits' %}">Все экспонаты</a>
+    </div>
+  </div>
+
+  <aside class="hud" aria-hidden="true">
+    <div class="hud__item"><small>ВЫСОТА</small><b data-altitude>0</b><small>м</small></div>
+    <div class="hud__item"><small>КУРС</small><b>149°</b></div>
+    <div class="hud__item"><small>БОРТ</small><b>RA-149</b></div>
+  </aside>
+  <a class="hero__scroll" href="#board" aria-label="Листать вниз"><span></span></a>
+</section>
+
+<section class="section board-section" id="board" aria-labelledby="board-title">
+  <div class="container">
+    <header class="section__head">
+      <p class="eyebrow">Табло вылетов</p>
+      <h2 id="board-title">Разделы экспозиции</h2>
+      <p class="muted">Каждый раздел — отдельный рейс. Выберите направление.</p>
+    </header>
+    <div class="board" role="table" aria-label="Разделы экспозиции">
+      <div class="board__row board__row--head" role="row">
+        <span role="columnheader">Рейс</span><span role="columnheader">Направление</span>
+        <span role="columnheader" class="hide-sm">Экспонатов</span><span role="columnheader">Статус</span>
+      </div>
+      {% for hall in halls %}
+      <a class="board__row" role="row" href="{{ hall.get_absolute_url }}">
+        <span role="cell" class="flap" data-flap="{{ hall.code }}">{{ hall.code }}</span>
+        <span role="cell" class="flap flap--wide" data-flap="{{ hall.title|upper }}">{{ hall.title|upper }}</span>
+        <span role="cell" class="hide-sm mono">{{ hall.n|stringformat:"02d" }}</span>
+        <span role="cell" class="status"><i></i>Посадка</span>
+      </a>
+      {% empty %}
+      <div class="board__row" role="row"><span role="cell">—</span><span role="cell">Разделы появятся после наполнения в кабинете администратора</span></div>
+      {% endfor %}
+    </div>
+  </div>
+</section>
+
+<section class="section cockpit" aria-labelledby="cockpit-title">
+  <div class="container cockpit__grid">
+    <div class="cockpit__text">
+      <p class="eyebrow">Главный экспонат</p>
+      <h2 id="cockpit-title">Кабина Ил-62</h2>
+      <p>Настоящая кабина дальнемагистрального лайнера установлена прямо в школе. Здесь ученики
+        пробуют себя в роли экипажа: командир, второй пилот, штурман, бортинженер.</p>
+      <ul class="facts">
+        <li><b>1963</b><span>первый полёт Ил-62</span></li>
+        <li><b>4</b><span>двигателя в хвостовой части</span></li>
+        <li><b>~100</b><span>предметов в фонде музея</span></li>
+      </ul>
+      <a class="btn" href="{% url 'museum:tour' %}">Заглянуть в кабину 360°</a>
+    </div>
+    <div class="dash" aria-hidden="true">
+      <div class="gauge" data-gauge="speed">
+        <svg viewBox="0 0 120 120"><circle cx="60" cy="60" r="54" class="gauge__ring"/>
+          <g class="gauge__ticks"></g><text x="60" y="40" class="gauge__label">СКОРОСТЬ</text>
+          <text x="60" y="90" class="gauge__value" data-gauge-value>0</text>
+          <line x1="60" y1="60" x2="60" y2="16" class="gauge__needle"/><circle cx="60" cy="60" r="4" class="gauge__hub"/></svg>
+      </div>
+      <div class="gauge gauge--horizon" data-gauge="horizon">
+        <svg viewBox="0 0 120 120"><defs><clipPath id="hz"><circle cx="60" cy="60" r="50"/></clipPath></defs>
+          <g clip-path="url(#hz)"><g class="horizon__ball"><rect x="-40" y="-40" width="200" height="100" fill="#2f6fd6"/><rect x="-40" y="60" width="200" height="100" fill="#8a5a2b"/><line x1="-40" y1="60" x2="160" y2="60" stroke="#fff" stroke-width="1.5"/></g></g>
+          <circle cx="60" cy="60" r="54" class="gauge__ring gauge__ring--clear"/><path d="M30 60h20l10 8 10-8h20" stroke="#ffb000" stroke-width="3" fill="none"/></svg>
+      </div>
+      <div class="gauge" data-gauge="alt">
+        <svg viewBox="0 0 120 120"><circle cx="60" cy="60" r="54" class="gauge__ring"/>
+          <g class="gauge__ticks"></g><text x="60" y="40" class="gauge__label">ВЫСОТА</text>
+          <text x="60" y="90" class="gauge__value" data-gauge-value>0</text>
+          <line x1="60" y1="60" x2="60" y2="16" class="gauge__needle"/><circle cx="60" cy="60" r="4" class="gauge__hub"/></svg>
+      </div>
+    </div>
+  </div>
+</section>
+
+{% if featured %}
+<section class="section" aria-labelledby="featured-title">
+  <div class="container">
+    <header class="section__head">
+      <p class="eyebrow">Посадочные талоны</p>
+      <h2 id="featured-title">Избранные экспонаты</h2>
+    </header>
+    <div class="tickets">
+      {% for ex in featured %}{% include "museum/_ticket.html" with ex=ex %}{% endfor %}
+    </div>
+    <p class="center"><a class="btn btn--ghost" href="{% url 'museum:exhibits' %}">Весь фонд — {{ exhibits_total }}</a></p>
+  </div>
+</section>
+{% endif %}
+
+{% if timeline %}
+<section class="section route" aria-labelledby="route-title">
+  <div class="container">
+    <header class="section__head">
+      <p class="eyebrow">Маршрут полёта</p>
+      <h2 id="route-title">Летопись авиации края</h2>
+    </header>
+  </div>
+  <div class="route__track" tabindex="0" aria-label="Лента событий, прокручивается горизонтально">
+    <svg class="route__line" preserveAspectRatio="none" viewBox="0 0 1000 40" aria-hidden="true"><path d="M0 20 Q 250 0 500 20 T 1000 20" /></svg>
+    {% for ev in timeline %}
+    <article class="route__stop reveal">
+      <span class="route__year">{{ ev.year }}</span>
+      <h3>{{ ev.title }}</h3>
+      {% if ev.text %}<p>{{ ev.text }}</p>{% endif %}
+    </article>
+    {% endfor %}
+  </div>
+</section>
+{% endif %}
+
+<section class="section cta" aria-labelledby="cta-title">
+  <div class="container cta__box">
+    <div>
+      <h2 id="cta-title">Приходите на экскурсию</h2>
+      <p>Классные часы, уроки мужества, экскурсии для учеников, родителей и гостей школы.</p>
+    </div>
+    <a class="btn btn--glow" href="{% url 'museum:visit' %}">Оставить заявку</a>
+  </div>
+</section>
+{% endblock %}
