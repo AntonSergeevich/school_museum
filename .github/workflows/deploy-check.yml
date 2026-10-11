@@ -1,0 +1,29 @@
+# После пуша в рабочую ветку: дошла ли новая версия до сервера.
+# Вебхук отвечает «разворачиваю» сразу, а сама выкатка идёт минуту-две —
+# поэтому ждём, пока /health/ на сайте покажет sha этого коммита.
+# Работает, когда в Settings → Secrets and variables → Actions → Variables
+# задана переменная SITE_URL (например, https://museum149.ru или http://IP).
+name: Проверка выкатки
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  live:
+    if: ${{ vars.SITE_URL != '' }}
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Ждём новую версию на сайте
+        env:
+          SITE_URL: ${{ vars.SITE_URL }}
+          WANT: ${{ github.sha }}
+        run: |
+          for i in $(seq 1 40); do
+            GOT="$(curl -fsS --max-time 10 "$SITE_URL/health/" | python3 -c 'import json,sys;print(json.load(sys.stdin).get("version",""))' 2>/dev/null || true)"
+            if [ "$GOT" = "$WANT" ]; then echo "✓ На сайте $GOT"; exit 0; fi
+            echo "попытка $i: на сайте ${GOT:-нет ответа}, ждём $WANT"; sleep 15
+          done
+          echo "::error::За 10 минут новая версия не появилась. На сервере: sudo bash /srv/museum/deploy/health.sh и tail -50 /var/log/museum-deploy.log"
+          exit 1

@@ -141,6 +141,13 @@ if not DEBUG:
     SESSION_COOKIE_SECURE = HTTPS_ENABLED
     CSRF_COOKIE_SECURE = HTTPS_ENABLED
     SECURE_HSTS_SECONDS = 60 * 60 * 24 * 30 if HTTPS_ENABLED else 0
+    # HSTS только на сам домен и без preload-списка браузеров — сознательно:
+    # домен ещё может смениться, а выйти из preload почти невозможно.
+    SILENCED_SYSTEM_CHECKS = ["security.W005", "security.W021"]
+    if not HTTPS_ENABLED:
+        # Пока сайт работает по HTTP (домена ещё нет), эти предупреждения
+        # check --deploy верны, но бесполезны и засоряют журнал выкатки.
+        SILENCED_SYSTEM_CHECKS += ["security.W004", "security.W008", "security.W012", "security.W016"]
 
 EMAIL_BACKEND = os.environ.get("DJANGO_EMAIL_BACKEND", "django.core.mail.backends.console.EmailBackend")
 EMAIL_HOST = os.environ.get("EMAIL_HOST", "")

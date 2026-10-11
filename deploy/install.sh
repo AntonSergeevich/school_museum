@@ -25,7 +25,7 @@ say "Пакеты"
 export DEBIAN_FRONTEND=noninteractive
 apt-get update -q
 apt-get install -y -q python3-venv python3-dev build-essential libpq-dev postgresql nginx \
-    certbot git rsync sqlite3 curl ufw openssl
+    certbot git rsync sqlite3 curl ufw openssl unzip rclone
 
 say "Пользователь $APP_USER"
 id "$APP_USER" >/dev/null 2>&1 || adduser --disabled-password --gecos "" "$APP_USER"

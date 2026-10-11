@@ -67,6 +67,7 @@ rollback() {
     as_app sh -c "git rev-parse HEAD > VERSION" || true
     fix_permissions || true
     systemctl restart "$SERVICE" 9>&- || true
+    as_app sh -c "echo $NEW > .deploy-failed" || true
     local code; code="$("$ROOT/deploy/probe.sh")"
     notify "❌ Сайт музея: новая версия не заработала ($1). Откатил на ${PREV:0:7}, сайт отвечает: $code. Журнал: /var/log/museum-deploy.log"
 }
@@ -76,6 +77,11 @@ as_app git fetch -q origin "$BRANCH"
 NEW="$(as_app git rev-parse "origin/$BRANCH")"
 if [ "$NEW" = "$PREV" ] && [ "${FORCE:-0}" != 1 ]; then
     echo "Новых коммитов нет (${NEW:0:7})"; exit 0
+fi
+# Коммит, который уже откатывали, повторно не пробуем — ждём исправления.
+if [ "$NEW" = "$(cat "$ROOT/.deploy-failed" 2>/dev/null)" ] && [ "${FORCE:-0}" != 1 ]; then
+    echo "Коммит ${NEW:0:7} уже не заработал и был откачен — жду следующего пуша (FORCE=1 — попробовать снова)"
+    exit 0
 fi
 SUBJECT="$(as_app git log -1 --format=%s "$NEW")"
 
@@ -143,5 +149,6 @@ if [ "$CODE" != "200" ]; then
 fi
 
 trap - ERR
+rm -f "$ROOT/.deploy-failed"
 echo "✓ Готово: ${NEW:0:7} $SUBJECT"
 notify "✅ Сайт музея обновлён: ${NEW:0:7} — $SUBJECT"

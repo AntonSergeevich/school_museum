@@ -1,0 +1,55 @@
+# Проверки на каждый пуш и PR: то, что ловит поломку ДО сервера.
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  django:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -r requirements.txt
+      - name: Миграции не забыты
+        run: python manage.py makemigrations --check --dry-run
+      - name: Тесты
+        run: python manage.py test museum
+      - name: Боевые настройки
+        env:
+          DJANGO_DEBUG: "0"
+          DJANGO_SECRET_KEY: ci-only-not-a-real-secret-0123456789abcdefghijklmnopqrstuvwxyz
+          DJANGO_ALLOWED_HOSTS: example.org
+          DJANGO_HTTPS: "1"
+        run: python manage.py check --deploy --fail-level WARNING
+
+  deploy-scripts:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: shellcheck
+        run: shellcheck -x -P SCRIPTDIR/.. deploy/*.sh
+      - name: Python-скрипты деплоя без зависимостей
+        run: python3 -m py_compile deploy/webhook_deploy.py deploy/notify_max.py
+      - name: nginx -t на версии из Ubuntu 24.04 (1.24)
+        run: |
+          set -e
+          mkdir -p ci/sites ci/le/live/example.org
+          openssl req -x509 -newkey rsa:2048 -nodes -days 1 -subj /CN=example.org \
+            -keyout ci/le/live/example.org/privkey.pem -out ci/le/live/example.org/fullchain.pem 2>/dev/null
+          printf 'proxy_set_header Host $http_host;\nproxy_set_header X-Real-IP $remote_addr;\nproxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;\nproxy_set_header X-Forwarded-Proto $scheme;\n' > ci/proxy_params
+          printf 'SITE_DOMAIN=\n' > .env
+          MUSEUM_ROOT="$PWD" MUSEUM_USER=runner bash -c 'source deploy/lib.sh; render_nginx' > ci/sites/http.conf
+          printf 'SITE_DOMAIN=example.org\n' > .env
+          sudo mkdir -p /etc/letsencrypt && sudo cp -r ci/le/live /etc/letsencrypt/
+          MUSEUM_ROOT="$PWD" MUSEUM_USER=runner bash -c 'source deploy/lib.sh; render_nginx' > ci/sites/https.conf
+          for variant in http https; do
+            printf 'events {}\nhttp { include /etc/nginx/mime.types; include /site/%s.conf; }\n' "$variant" > ci/nginx-$variant.conf
+            docker run --rm -v "$PWD/ci/sites:/site:ro" -v "$PWD/ci/nginx-$variant.conf:/etc/nginx/nginx.conf:ro" \
+              -v "$PWD/ci/proxy_params:/etc/nginx/proxy_params:ro" -v /etc/letsencrypt:/etc/letsencrypt:ro \
+              nginx:1.24 nginx -t
+          done

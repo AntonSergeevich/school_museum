@@ -10,3 +10,4 @@ staticfiles/
 .idea/
 .vscode/
 VERSION
+.deploy-failed
