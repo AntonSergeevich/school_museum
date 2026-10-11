@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Подключить домен и HTTPS. Запускать, когда A-записи домена смотрят на сервер:
-#   sudo bash /srv/museum/deploy/certbot.sh museum149.ru
+#   sudo bash /srv/museum/deploy/certbot.sh alsib-krsk.ru
 # Повторный запуск с другим доменом переводит сайт на новый домен.
 set -euo pipefail
 # shellcheck source=deploy/lib.sh
@@ -8,7 +8,7 @@ source "$(dirname "$0")/lib.sh"
 
 DOMAIN="${1:-$(env_value SITE_DOMAIN)}"
 DOMAIN="${DOMAIN#https://}"; DOMAIN="${DOMAIN#http://}"; DOMAIN="${DOMAIN%/}"
-[ -n "$DOMAIN" ] || { echo "Укажите домен: sudo bash $0 museum149.ru"; exit 1; }
+[ -n "$DOMAIN" ] || { echo "Укажите домен: sudo bash $0 alsib-krsk.ru"; exit 1; }
 # Кириллический домен (.рф) certbot и nginx понимают только в punycode.
 if printf '%s' "$DOMAIN" | grep -qP '[^\x00-\x7F]'; then
     DOMAIN="$(python3 -c 'import sys;print(sys.argv[1].encode("idna").decode())' "$DOMAIN")"

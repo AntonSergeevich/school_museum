@@ -2,7 +2,7 @@
 # Вебхук отвечает «разворачиваю» сразу, а сама выкатка идёт минуту-две —
 # поэтому ждём, пока /health/ на сайте покажет sha этого коммита.
 # Работает, когда в Settings → Secrets and variables → Actions → Variables
-# задана переменная SITE_URL (например, https://museum149.ru или http://IP).
+# задана переменная SITE_URL (например, https://alsib-krsk.ru или http://IP).
 name: Проверка выкатки
 
 on:

@@ -5,7 +5,7 @@
 #   git clone -b main https://github.com/AntonSergeevich/school_museum.git /tmp/museum
 #   ADMIN_EMAIL=glukhovas@yandex.ru bash /tmp/museum/deploy/install.sh
 #
-# Необязательно: DOMAIN=museum149.ru — если DNS уже настроен, HTTPS включится сразу.
+# Необязательно: DOMAIN=alsib-krsk.ru — если DNS уже настроен, HTTPS включится сразу.
 # Без домена сайт откроется по http://IP_СЕРВЕРА, домен подключается позже
 # командой deploy/certbot.sh. Повторный запуск безопасен: что сделано — пропускается.
 set -euo pipefail
@@ -178,6 +178,6 @@ cat <<DONE
 
 3) Уведомления в MAX и пароль почты — DEPLOY.md, разделы «Уведомления в MAX» и «Почта».
 
-Когда будет домен: sudo bash $ROOT/deploy/certbot.sh ваш-домен.ru
+Когда будет домен: sudo bash $ROOT/deploy/certbot.sh alsib-krsk.ru
 Если что-то не так:  sudo bash $ROOT/deploy/health.sh
 DONE
