@@ -159,8 +159,10 @@
       // Звёзды хранятся в долях экрана: когда на телефоне прячется адресная строка и
       // окно меняет высоту, небо растягивается, а не рассыпается заново — раньше из-за
       // этого при прокрутке звёзды «прыгали».
-      var stars = Array.from({ length: 420 }, function () {
-        return { x: Math.random(), y: Math.random() * .85, r: Math.random() * 1.3 + .2, p: Math.random() * 6.28, s: .5 + Math.random() * 1.5, k: Math.random() };
+      // Небо шире экрана: при прокрутке оно поворачивается вокруг точки далеко внизу,
+      // и края не оголяются.
+      var stars = Array.from({ length: 1400 }, function () {
+        return { x: Math.random() * 1.8 - .4, y: Math.random() * 1.6 - .7, r: Math.random() * 1.3 + .2, p: Math.random() * 6.28, s: .5 + Math.random() * 1.5, k: Math.random() };
       });
       var resize = function () {
         var w = canvas.clientWidth, h = canvas.clientHeight;
@@ -174,12 +176,19 @@
         var g = ctx.createLinearGradient(0, 0, 0, H);
         g.addColorStop(0, "#040817"); g.addColorStop(.6, "#0b1638"); g.addColorStop(1, "#1d2550");
         ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
-        var density = Math.min(1, W * H / (2600 * 420));   // на узком экране — меньше звёзд
+        var density = Math.min(1, W * H / 2600 / 486);   // ~1 звезда на 2600 px², на узком экране — меньше
+        // «Земля вертится»: прокрутка поворачивает звёздное небо вокруг полюса под горизонтом
+        // и немного отстаёт от страницы — одинаково на телефоне и компьютере.
+        var sy = reduce ? 0 : window.scrollY, ang = sy * 0.0009, px = W * .5, py = H * 1.9;
+        ctx.save();
+        ctx.translate(0, sy * .35);
+        ctx.translate(px, py); ctx.rotate(-ang); ctx.translate(-px, -py);
         stars.forEach(function (s) {
           if (s.k > density) return;
           ctx.globalAlpha = .35 + .65 * Math.abs(Math.sin(s.p + t / 1000 * s.s));
           ctx.fillStyle = "#fff"; ctx.beginPath(); ctx.arc(s.x * W, s.y * H, s.r, 0, 6.28); ctx.fill();
         });
+        ctx.restore();
         ctx.globalAlpha = 1;
         if (!meteor && Math.random() < .004) meteor = { x: Math.random() * W, y: Math.random() * H * .3, l: 0 };
         if (meteor) {
@@ -325,6 +334,9 @@
           scope.querySelectorAll("[data-live-region]").forEach(function (el) {
             var fresh = r.doc.querySelector('[data-live-region="' + el.dataset.liveRegion + '"]');
             if (fresh) el.innerHTML = fresh.innerHTML;
+            // новые карточки сразу видимы: наблюдатель «появления» про них не знает,
+            // и без этого они оставались прозрачными (opacity: 0)
+            el.querySelectorAll(".reveal").forEach(function (r) { r.classList.add("is-in"); });
           });
           history[push ? "pushState" : "replaceState"]({ y: window.scrollY }, "", r.url);
           form.classList.remove("is-loading");

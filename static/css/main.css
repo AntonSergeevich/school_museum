@@ -197,6 +197,7 @@ p { margin: 0 0 1em; }
 .fleet__svg { display: block; width: var(--w, 220px); height: calc(var(--w, 220px) * .3); fill: currentColor; position: relative; }
 .fleet__plane.is-left .fleet__svg { transform: scaleX(-1); }
 .fleet__trail {
+  pointer-events: none;
   position: absolute; top: 46%; right: calc(100% - 12px); width: calc(var(--w, 220px) * 2.4); height: 3px; border-radius: 3px;
   background: linear-gradient(90deg, transparent, rgba(255, 255, 255, .55));
   box-shadow: 0 6px 0 -1px rgba(255, 255, 255, .25);
@@ -207,7 +208,7 @@ p { margin: 0 0 1em; }
   position: absolute; left: 50%; bottom: 100%; translate: -50% -4px; white-space: nowrap;
   font: 600 .72rem var(--mono); letter-spacing: .12em; text-transform: uppercase; color: var(--amber-2);
   padding: 4px 10px; border-radius: 999px; background: rgba(5, 10, 28, .75); border: 1px solid rgba(255, 176, 0, .4);
-  opacity: 0; transition: opacity .25s;
+  opacity: 0; transition: opacity .25s; pointer-events: none;   /* невидимая подпись не должна ловить касания */
 }
 .fleet__plane:hover .fleet__tag, .fleet__plane.is-near .fleet__tag { opacity: 1; }
 .fleet__plane[href]:hover { color: #fff; filter: drop-shadow(0 0 16px rgba(255, 176, 0, .8)); cursor: pointer; }
