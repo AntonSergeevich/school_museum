@@ -13,11 +13,32 @@
   /* ---------- Меню ---------- */
   var burger = document.querySelector("[data-burger]");
   var nav = document.getElementById("nav");
+  var header = document.querySelector(".site-header");
+  function setMenu(open) {
+    nav.classList.toggle("is-open", open);
+    burger.setAttribute("aria-expanded", open);
+    burger.querySelector(".visually-hidden").textContent = open ? "Закрыть меню" : "Меню";
+    document.body.classList.toggle("nav-open", open);
+  }
   if (burger && nav) {
-    burger.addEventListener("click", function () {
-      var open = nav.classList.toggle("is-open");
-      burger.setAttribute("aria-expanded", open);
+    burger.addEventListener("click", function () { setMenu(!nav.classList.contains("is-open")); });
+    nav.addEventListener("click", function (e) { if (e.target.closest("a")) setMenu(false); });
+    document.addEventListener("keydown", function (e) {
+      if (e.key === "Escape" && nav.classList.contains("is-open")) { setMenu(false); burger.focus(); }
     });
+    window.matchMedia("(min-width: 1280px)").addEventListener("change", function (m) { if (m.matches) setMenu(false); });
+  }
+
+  /* Шапка уезжает при прокрутке вниз и возвращается при прокрутке вверх */
+  if (header) {
+    var lastHeaderY = window.scrollY;
+    window.addEventListener("scroll", function () {
+      var y = window.scrollY, menuOpen = nav && nav.classList.contains("is-open");
+      if (Math.abs(y - lastHeaderY) < 6) return;
+      header.classList.toggle("is-hidden", !menuOpen && y > lastHeaderY && y > 240);
+      lastHeaderY = y;
+    }, { passive: true });
+    header.addEventListener("focusin", function () { header.classList.remove("is-hidden"); });
   }
 
   /* ---------- Версия для слабовидящих ---------- */
@@ -75,9 +96,14 @@
   var ABC = "АБВГДЕЖЗИКЛМНОПРСТУФХЦЧШЭЮЯ0123456789-";
   function flapify(el) {
     var text = el.dataset.flap; el.textContent = ""; el.setAttribute("aria-label", text);
+    // Буквы собраны в слова: на узком экране строка переносится между словами, а не посреди слова
+    var word = null;
     var cells = Array.from(text).map(function (ch) {
       var s = document.createElement("span"); s.className = "ch" + (ch === " " ? " sp" : "");
-      s.textContent = ch === " " ? " " : ch; s.setAttribute("aria-hidden", "true"); el.appendChild(s); return s;
+      s.textContent = ch === " " ? "\u00a0" : ch; s.setAttribute("aria-hidden", "true");
+      if (ch === " ") { word = null; el.appendChild(s); return s; }
+      if (!word) { word = document.createElement("span"); word.className = "w"; el.appendChild(word); }
+      word.appendChild(s); return s;
     });
     return function play() {
       cells.forEach(function (c, i) {

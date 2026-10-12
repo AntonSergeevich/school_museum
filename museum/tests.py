@@ -17,11 +17,24 @@ class SiteTests(TestCase):
     def test_pages_open(self):
         ex = Exhibit.published.first()
         hall = Hall.objects.first()
-        for url in ["/", "/tour/", "/exhibits/", "/about/", "/visit/", "/documents/", "/privacy/",
+        for url in ["/", "/tour/", "/cockpit/", "/exhibits/", "/about/", "/visit/", "/documents/", "/privacy/",
                     "/consent/", "/accessibility/", "/sitemap.xml", "/robots.txt",
                     ex.get_absolute_url(), hall.get_absolute_url(), "/exhibits/?q=Ил&hall=" + hall.slug]:
             with self.subTest(url=url):
                 self.assertEqual(self.client.get(url).status_code, 200)
+
+    def test_cockpit_page_loads_three_locally(self):
+        resp = self.client.get("/cockpit/")
+        self.assertContains(resp, '"three": "/static/vendor/three/three.module.min.js"')
+        self.assertContains(resp, 'type="module"')
+        self.assertContains(resp, 'href="/cockpit/"')            # пункт меню
+        self.assertContains(self.client.get("/"), 'href="/cockpit/"')
+
+    def test_people_count_plural(self):
+        from museum.templatetags.museum_tags import ru_plural
+        forms = "имя,имени,имён"
+        self.assertEqual([ru_plural(n, forms) for n in (1, 2, 5, 11, 12, 21, 22, 25, 101, 112, 138)],
+                         ["имя", "имени", "имён", "имён", "имён", "имя", "имени", "имён", "имя", "имён", "имён"])
 
     def test_unpublished_exhibit_hidden(self):
         ex = Exhibit.objects.first()
