@@ -92,6 +92,11 @@ step "обновление кода"
 ROLLED_CODE=1
 # reset --hard, а не pull: файл, созданный на сервере руками, не остановит выкатку.
 as_app git reset -q --hard "$NEW"
+# Функции (сборка конфига nginx, права и т. п.) перечитываем из новой версии:
+# загруженные в начале — от прошлой, и правки в lib.sh иначе применялись бы
+# только со следующей выкатки.
+# shellcheck source=deploy/lib.sh
+source "$ROOT/deploy/lib.sh"
 
 step "зависимости Python"
 as_app .venv/bin/pip install -q --disable-pip-version-check -r requirements.txt
