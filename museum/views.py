@@ -47,8 +47,8 @@ def exhibit_list(request):
     qs = Exhibit.published.select_related("hall")
     q = request.GET.get("q", "").strip()
     hall_slug = request.GET.get("hall", "")
-    if q:
-        qs = qs.filter(Q(title__icontains=q) | Q(short__icontains=q) | Q(description__icontains=q))
+    for w in q.split()[:6]:   # каждое слово отдельно: «форма лётчика» найдёт «Форма пилота-лётчика»
+        qs = qs.filter(Q(title__icontains=w) | Q(short__icontains=w) | Q(description__icontains=w))
     if hall_slug:
         qs = qs.filter(hall__slug=hall_slug)
     page = Paginator(qs, 12).get_page(request.GET.get("page"))
@@ -144,8 +144,9 @@ def documents(request):
 def people(request):
     qs = Person.objects.filter(is_published=True)
     q = request.GET.get("q", "").strip()
-    if q:
-        qs = qs.filter(Q(full_name__icontains=q) | Q(rank__icontains=q) | Q(biography__icontains=q))
+    for w in q.split()[:6]:   # «Иванов техник»: оба слова, в любом из полей
+        qs = qs.filter(Q(full_name__icontains=w) | Q(rank__icontains=w) | Q(birth_place__icontains=w)
+                       | Q(awards__icontains=w) | Q(biography__icontains=w))
     letters = sorted({p.full_name[:1].upper() for p in Person.objects.filter(is_published=True).only("full_name")})
     letter = request.GET.get("letter", "")
     if letter:

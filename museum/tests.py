@@ -49,6 +49,34 @@ class SiteTests(TestCase):
     def test_slug_transliterated(self):
         self.assertEqual(Hall.objects.create(title="Новый зал").slug, "novyy-zal")
 
+    def test_phone_normalized(self):
+        from museum.forms import ExcursionRequestForm
+        base = {"name": "Иванова", "people": 5, "consent": "on"}
+        for raw in ["+7 (912) 345-67-89", "89123456789", "8 912 345 67 89", "+79123456789", "9123456789", "7-912-345-6789"]:
+            with self.subTest(raw=raw):
+                f = ExcursionRequestForm({**base, "phone": raw})
+                self.assertTrue(f.is_valid(), f.errors)
+                self.assertEqual(f.cleaned_data["phone"], "+7 (912) 345-67-89")
+        for raw in ["+7 (912) 345", "12345", "+7"]:
+            with self.subTest(raw=raw):
+                self.assertFalse(ExcursionRequestForm({**base, "phone": raw}).is_valid())
+        f = ExcursionRequestForm({**base, "phone": "+49 30 1234 5678"})
+        self.assertTrue(f.is_valid())
+        self.assertEqual(f.cleaned_data["phone"], "+493012345678")
+
+    def test_search_by_several_words(self):
+        resp = self.client.get("/people/", {"q": "Мазурук генерал"})
+        self.assertContains(resp, "Мазурук")
+        self.assertNotContains(resp, "Шкляров Гавриил")
+        self.assertContains(resp, 'data-live-region="results"')
+        self.assertContains(resp, "search__btn")
+        self.assertContains(self.client.get("/exhibits/", {"q": "самописец Ту-154"}), "Бортовой самописец")
+
+    def test_visit_phone_field_has_mask_hooks(self):
+        resp = self.client.get("/visit/")
+        self.assertContains(resp, "data-phone")
+        self.assertContains(resp, 'inputmode="tel"')
+
     def test_excursion_requires_consent(self):
         data = {"name": "Иванова А. А.", "phone": "+79990000000", "people": 25,
                 "desired_date": (datetime.date.today() + datetime.timedelta(days=3)).isoformat()}
@@ -326,7 +354,7 @@ class NotifyTests(TestCase):
     def test_max_failure_does_not_lose_request(self):
         with mock.patch("urllib.request.urlopen", side_effect=TimeoutError):
             resp = self.client.post(reverse("museum:visit"), {
-                "name": "Петров", "phone": "+7999", "people": 3, "consent": "on"})
+                "name": "Петров", "phone": "+7 999 000-00-00", "people": 3, "consent": "on"})
         self.assertRedirects(resp, reverse("museum:visit"))
         self.assertEqual(ExcursionRequest.objects.count(), 1)
 

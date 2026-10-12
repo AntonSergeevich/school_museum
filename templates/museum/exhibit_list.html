@@ -5,10 +5,14 @@
   <div class="container">
     <p class="eyebrow">Фонд музея</p>
     <h1>Экспонаты</h1>
-    <form class="filters" method="get" role="search">
-      <label class="visually-hidden" for="q">Поиск по экспонатам</label>
-      <input id="q" type="search" name="q" value="{{ q }}" placeholder="Поиск: самописец, форма, прибор…">
-      <div class="chips" role="group" aria-label="Раздел">
+    <form class="filters" method="get" role="search" data-live aria-controls="exhibit-results">
+      <div class="search">
+        <label class="visually-hidden" for="q">Поиск по экспонатам</label>
+        <input id="q" type="search" name="q" value="{{ q }}" placeholder="Поиск: самописец, форма, прибор…" autocomplete="off" enterkeyhint="search">
+        <span data-live-region="hall">{% if hall_slug %}<input type="hidden" name="hall" value="{{ hall_slug }}">{% endif %}</span>
+        <button class="btn search__btn" type="submit">{% include "museum/_icon_search.html" %}<span>Найти</span></button>
+      </div>
+      <div class="chips" role="group" aria-label="Раздел" data-live-region="chips">
         <a class="chip {% if not hall_slug %}is-active{% endif %}" href="?q={{ q|urlencode }}">Все</a>
         {% for h in halls %}<a class="chip {% if hall_slug == h.slug %}is-active{% endif %}" href="?hall={{ h.slug }}&q={{ q|urlencode }}">{{ h.title }} <small>{{ h.n }}</small></a>{% endfor %}
       </div>
@@ -16,7 +20,8 @@
   </div>
 </section>
 <section class="section section--tight">
-  <div class="container">
+  <div class="container" id="exhibit-results" data-live-region="results" aria-live="polite">
+    {% if q %}<p class="muted results-count">Найдено: {{ page.paginator.count }}</p>{% endif %}
     <div class="tickets">
       {% for ex in page %}{% include "museum/_ticket.html" with ex=ex %}
       {% empty %}<p class="muted">Ничего не найдено. Попробуйте другой запрос.</p>{% endfor %}

@@ -33,10 +33,14 @@ html { scroll-behavior: smooth; -webkit-text-size-adjust: 100%; }
 body {
   margin: 0; font-family: var(--font); font-size: calc(17px * var(--fs)); line-height: 1.6;
   color: var(--text); background: var(--sky-0);
-  background-image: radial-gradient(1200px 600px at 80% -10%, #1b2d66 0%, transparent 60%),
-                    radial-gradient(900px 500px at -10% 30%, #121f4a 0%, transparent 60%);
-  background-attachment: fixed;
   overflow-x: hidden;
+}
+/* Фон-«небо» неподвижен и на телефоне: background-attachment: fixed мобильные браузеры
+   игнорируют, поэтому фон — отдельный закреплённый слой. */
+body::before {
+  content: ""; position: fixed; inset: 0; z-index: -1; pointer-events: none;
+  background: radial-gradient(1200px 600px at 80% -10%, #1b2d66 0%, transparent 60%),
+              radial-gradient(900px 500px at -10% 30%, #121f4a 0%, transparent 60%);
 }
 img { max-width: 100%; display: block; }
 a { color: var(--amber-2); text-underline-offset: .2em; }
@@ -166,6 +170,9 @@ p { margin: 0 0 1em; }
   animation: runway 2.4s linear infinite;
 }
 @keyframes runway { to { background-position: -46px calc(100% - 18px), 0 0; } }
+/* Текст первого экрана не перехватывает касания: самолёты за ним можно поймать пальцем */
+.hero__content, .hud, .hero__glow, .hero::after { pointer-events: none; }
+.hero__content a, .hero__content button { pointer-events: auto; }
 .hero__content { padding: 60px 0 120px; max-width: 900px; text-shadow: 0 2px 18px rgba(4, 8, 23, .9), 0 0 2px rgba(4, 8, 23, .8); }
 .hero__title { font-size: clamp(2.6rem, 8.5vw, 6.4rem); font-weight: 800; letter-spacing: -.03em; line-height: .98; margin-bottom: .35em; }
 .hero__title .line { display: block; opacity: 0; transform: translateY(40px); animation: rise .9s cubic-bezier(.2, .7, .2, 1) forwards; }
@@ -356,6 +363,16 @@ p { margin: 0 0 1em; }
 .crumbs { font-size: .9em; color: var(--muted); margin-bottom: 18px; }
 .crumbs a { color: var(--muted); }
 .filters { display: grid; gap: 16px; margin-top: 24px; }
+.search { display: flex; gap: 8px; }
+.search input { flex: 1; min-width: 0; }
+.search__btn { flex: none; border-radius: 12px; padding-inline: 18px; }
+.search__btn svg { width: 20px; height: 20px; }
+input[type="search"]::-webkit-search-cancel-button { filter: invert(1); cursor: pointer; }
+@media (max-width: 560px) { .search__btn span { display: none; } .search__btn { width: 52px; padding: 0; } }
+.filters.is-loading .search__btn svg { animation: spin-r .8s linear infinite; }
+[data-live-region="results"] { transition: opacity .2s; }
+main:has(.filters.is-loading) [data-live-region="results"] { opacity: .45; }
+.results-count { margin: 0 0 14px; }
 input, select, textarea {
   width: 100%; font: inherit; color: var(--text); background: rgba(255, 255, 255, .05);
   border: 1px solid var(--line); border-radius: 12px; padding: 13px 16px; min-height: 48px;
@@ -409,6 +426,9 @@ input:focus, textarea:focus { border-color: var(--amber); outline: none; box-sha
 .field--check label { margin: 0; font-size: .86em; }
 .field__error { color: var(--red); font-size: .88em; margin: 6px 0 0; grid-column: 1 / -1; }
 .hp { position: absolute; left: -10000px; }
+.flash--error { background: rgba(255, 90, 90, .12) !important; border-color: var(--red) !important; }
+.field.is-incomplete input { border-color: var(--amber); }
+.field.is-incomplete::after { content: "Номер неполный — нужно 10 цифр после +7"; display: block; color: var(--amber-2); font-size: .85em; margin-top: 6px; }
 .flash { margin: 20px 0; padding: 14px 18px; border-radius: 12px; background: rgba(75, 227, 154, .12); border: 1px solid var(--green); }
 @media (max-width: 900px) { .visit { grid-template-columns: 1fr; } }
 
@@ -665,3 +685,13 @@ kbd { display: inline-block; min-width: 1.6em; padding: 1px 6px; border-radius: 
   .pit__yoke { width: 140px; height: 140px; }
   .pit__throttle input { height: 140px; }
 }
+
+/* ---------- Переходы без перезагрузки ---------- */
+.route-progress { position: fixed; top: 0; left: 0; z-index: 200; height: 3px; width: 0; background: var(--amber); box-shadow: 0 0 10px var(--amber); opacity: 0; pointer-events: none; }
+.route-progress.is-on { opacity: 1; width: 70%; transition: width 2.5s cubic-bezier(.1, .7, .2, 1); }
+.route-progress.is-done { width: 100%; opacity: 0; transition: width .2s, opacity .3s .2s; }
+::view-transition-old(root), ::view-transition-new(root) { animation-duration: .22s; }
+.site-header { view-transition-name: site-header; }
+/* Самолёт, остановленный касанием на телефоне */
+.fleet.has-held { opacity: .95; }
+.fleet__plane.is-held { color: #fff; filter: drop-shadow(0 0 16px rgba(255, 176, 0, .9)) !important; }
