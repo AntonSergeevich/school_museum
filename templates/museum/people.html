@@ -8,23 +8,29 @@
     <h1>Люди трассы</h1>
     <p class="lead">Лётчики, штурманы, техники и другие участники Красноярской воздушной трассы Аляска — Сибирь.
       Их имена и судьбы собраны музеем по архивным документам и воспоминаниям.</p>
-    <form class="filters" method="get" role="search">
-      <label class="visually-hidden" for="q">Поиск по имени</label>
-      <input id="q" type="search" name="q" value="{{ q }}" placeholder="Фамилия, звание, аэродром…">
-      {% if letters %}
-      <div class="chips letters" role="group" aria-label="Первая буква фамилии">
-        <a class="chip {% if not letter %}is-active{% endif %}" href="?">Все</a>
-        {% for l in letters %}<a class="chip {% if letter == l %}is-active{% endif %}" href="?letter={{ l|urlencode }}">{{ l }}</a>{% endfor %}
+    <form class="filters" method="get" role="search" data-live aria-controls="people-results">
+      <div class="search">
+        <label class="visually-hidden" for="q">Поиск по имени</label>
+        <input id="q" type="search" name="q" value="{{ q }}" placeholder="Фамилия, звание, аэродром…" autocomplete="off" enterkeyhint="search">
+        <button class="btn search__btn" type="submit">{% include "museum/_icon_search.html" %}<span>Найти</span></button>
       </div>
-      {% endif %}
+      <div data-live-region="chips">
+        {% if letters %}
+        <div class="chips letters" role="group" aria-label="Первая буква фамилии">
+          <a class="chip {% if not letter %}is-active{% endif %}" href="?">Все</a>
+          {% for l in letters %}<a class="chip {% if letter == l %}is-active{% endif %}" href="?letter={{ l|urlencode }}">{{ l }}</a>{% endfor %}
+        </div>
+        {% endif %}
+      </div>
     </form>
   </div>
 </section>
 <section class="section section--tight">
-  <div class="container">
+  <div class="container" id="people-results" data-live-region="results" aria-live="polite">
+    {% if q or letter %}<p class="muted results-count">Найдено: {{ people|length }}</p>{% endif %}
     <div class="people">
       {% for p in people %}{% include "museum/_person_card.html" %}
-      {% empty %}<p class="muted">Записи появятся после проверки управляющим музеем.</p>{% endfor %}
+      {% empty %}<p class="muted">{% if q or letter %}Никого не нашли. Попробуйте только фамилию или другую букву.{% else %}Записи появятся после проверки управляющим музеем.{% endif %}</p>{% endfor %}
     </div>
   </div>
 </section>
