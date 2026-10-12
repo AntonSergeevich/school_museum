@@ -112,29 +112,40 @@ sudo -u museum /srv/museum/.venv/bin/python /srv/museum/manage.py sendtestemail 
 
 ## 6. Материалы музея с Google Диска
 
-Самый быстрый путь — сразу с Диска на сервер, минуя свой компьютер (rclone уже установлен):
+**Шаг 1. Скачать папку с Диска.** Откройте drive.google.com, правой кнопкой по папке «Музей» → «Скачать».
+Google сам упакует её в zip. Если материалов больше 2 ГБ, архивов будет несколько
+(`Музей-…-001.zip`, `-002.zip` и т. д.): скачайте все.
 
-```bash
-rclone config        # n → имя gdrive → тип drive → client_id/secret пустые → scope 1 → …
-                     # «Use web browser?» → n: rclone даст команду для своего компьютера,
-                     # там откроется вход в Google, результат вставить обратно
-rclone copy "gdrive:Музей" /srv/import/Музей --progress
+**Шаг 2. Загрузить архивы на сервер.** В PowerShell на своём компьютере (не на сервере):
+
+```powershell
+ssh root@141.133.192.56 "mkdir -p /srv/import"
+scp "$env:USERPROFILE\Downloads\Музей-*.zip" root@141.133.192.56:/srv/import/
 ```
 
-Или по-простому: скачать папку с Диска архивом, загрузить на сервер
-(`scp Музей.zip root@141.133.192.56:/srv/import/` или WinSCP) и `unzip -d /srv/import Музей.zip`.
-
-Импорт — сначала пробный, потом настоящий:
+**Шаг 3. Распаковать и импортировать.** На сервере, внутри `tmux` (импорт сотни карточек занимает несколько минут):
 
 ```bash
+tmux new -s import
+cd /srv/import && for z in *.zip; do unzip -O UTF-8 -o -q "$z"; done && ls   # -O UTF-8: русские имена файлов
+chown -R museum:museum /srv/import
 cd /srv/museum
-sudo -u museum .venv/bin/python manage.py import_drive /srv/import/Музей --dry-run
-sudo -u museum .venv/bin/python manage.py import_drive /srv/import/Музей
+sudo -u museum .venv/bin/python manage.py import_drive /srv/import/Музей --dry-run --include-docx   # что будет
+sudo -u museum .venv/bin/python manage.py import_drive /srv/import/Музей --publish --include-docx   # импорт и публикация
 ```
 
-Карточки людей и документы появляются **скрытыми**. Управляющий проверяет их в кабинете, отмечает
-«Публикация согласована» и публикует (в списке «Люди трассы» есть действие «Опубликовать»).
-Сочинения учеников не импортируются: это данные детей, их публикуют только с согласия родителей.
+| Флаг | Что делает |
+|---|---|
+| `--dry-run` | Только показать, ничего не записывать |
+| `--publish` | Сразу опубликовать и отметить «Публикация согласована». Использовать, только когда согласия получены |
+| `--include-docx` | Файлы Word вне карточек людей (сочинения) импортировать как документы архива |
+| `--update` | Перезаписать тексты и портреты уже импортированных людей (если на Диске что-то исправили) |
+
+Без `--publish` всё появляется **скрытым**: проверить и опубликовать можно в кабинете («Люди трассы» →
+действие «Опубликовать») или повторным запуском с `--publish`. Повторный запуск дублей не создаёт.
+
+Альтернатива скачиванию — rclone прямо с Диска на сервер: `rclone config` (тип `drive`, авторизация
+через браузер на своём компьютере), затем `rclone copy "gdrive:Музей" /srv/import/Музей --progress`.
 
 ## 7. Домен alsib-krsk.ru
 

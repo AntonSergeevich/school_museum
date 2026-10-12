@@ -146,10 +146,30 @@ class ImportDriveTests(TestCase):
             (topic / n).write_bytes(b"%PDF-1.4 test")
         essays = self.root / "Музей 2" / "Сочинения"
         essays.mkdir()
-        docx.Document().save(essays / "Мой дедушка.docx")
+        essay = docx.Document()
+        essay.add_paragraph("Мой дедушка")
+        essay.add_paragraph("Мой дедушка был лётчиком.")
+        essay.save(essays / "Мой_дедушка_2Г.docx")
 
     def tearDown(self):
         shutil.rmtree(self.root, ignore_errors=True)
+
+    def test_publish_and_include_docx(self):
+        call_command("import_drive", str(self.root), "--publish", "--include-docx", stdout=io.StringIO())
+        p = Person.objects.get()
+        self.assertTrue(p.is_published and p.publication_checked)
+        self.assertEqual(self.client.get(p.get_absolute_url()).status_code, 200)
+        self.assertTrue(Document.objects.filter(topic="Сочинения", is_published=True).exists())
+        self.assertEqual(Document.objects.filter(is_published=False).count(), 0)
+        self.assertContains(self.client.get("/documents/"), "DOCX")
+
+    def test_publish_rerun_publishes_hidden(self):
+        call_command("import_drive", str(self.root), stdout=io.StringIO())
+        self.assertFalse(Person.objects.get().is_published)
+        call_command("import_drive", str(self.root), "--publish", stdout=io.StringIO())
+        self.assertTrue(Person.objects.get().is_published)
+        self.assertEqual(Document.objects.filter(is_published=False).count(), 0)
+        self.assertEqual(Person.objects.count(), 1)
 
     def test_dry_run_writes_nothing(self):
         call_command("import_drive", str(self.root), "--dry-run", stdout=io.StringIO())

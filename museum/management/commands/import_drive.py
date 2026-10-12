@@ -10,11 +10,17 @@
 * остальные папки — тема архива: каждый PDF становится документом
   в «Архивных материалах» с темой по имени папки.
 
-Всё импортируется СКРЫТЫМ: публикует управляющий музеем после проверки.
+По умолчанию всё импортируется СКРЫТЫМ: публикует управляющий музеем после
+проверки. Флаг --publish — когда согласия на публикацию уже собраны: записи
+сразу публикуются и отмечаются «Публикация согласована». Повторный запуск
+с --publish публикует и то, что было импортировано скрытым раньше.
+
 Повторный запуск не создаёт дублей; уже существующие записи не трогаются
 (флаг --update перезапишет тексты, но не отметки о публикации).
-Сочинения учеников (.docx вне карточек) не импортируются: это данные детей,
-их можно публиковать только с согласия родителей.
+
+Файлы Word вне карточек (например, сочинения учеников) по умолчанию
+пропускаются: это данные детей. С флагом --include-docx они становятся
+документами архива — только если есть согласие родителей.
 """
 import datetime
 import re
@@ -100,6 +106,18 @@ def clean_title(stem):
     return title[:255] or stem
 
 
+def docx_title(path):
+    """Название для файла Word: первая строка текста, если она похожа на заголовок,
+    иначе — имя файла («Мой_прадедушка_Гармашов…» → «Мой прадедушка Гармашов…»)."""
+    try:
+        first = next((p for p in docx_paragraphs(path) if p), "")
+    except Exception:
+        first = ""
+    if 3 <= len(first) <= 120:
+        return first.strip(" .")
+    return clean_title(path.stem)
+
+
 class Command(BaseCommand):
     help = "Импортировать людей трассы и архивные материалы из папки Google Диска"
 
@@ -108,8 +126,13 @@ class Command(BaseCommand):
         parser.add_argument("--dry-run", action="store_true", help="Только показать, ничего не записывать")
         parser.add_argument("--update", action="store_true", help="Обновить тексты уже импортированных людей")
         parser.add_argument("--group", default="Люди трассы АлСиб", help="Раздел для карточек людей")
+        parser.add_argument("--publish", action="store_true",
+                            help="Сразу опубликовать (согласия на публикацию получены)")
+        parser.add_argument("--include-docx", action="store_true",
+                            help="Импортировать файлы Word вне карточек (сочинения) как документы архива")
 
-    def handle(self, root, dry_run, update, group, **opts):
+    def handle(self, root, dry_run, update, group, publish=False, include_docx=False, **opts):
+        self.publish = publish
         root = Path(root)
         if not root.is_dir():
             raise CommandError(f"Нет такой папки: {root}")
@@ -130,23 +153,32 @@ class Command(BaseCommand):
                     title = clean_title(f.stem.replace("_", ":"))
                 self.import_document(f, title, folder, root, today, dry_run, stats)
             for f in files:
-                if f.suffix.lower() in {".docx", ".doc"}:
-                    stats["ignored"] += 1
-                    self.stdout.write(f"  пропущен (не биография, проверить вручную): {f.relative_to(root)}")
+                if f.suffix.lower() in {".docx", ".doc"} and not f.name.startswith("~$"):
+                    if include_docx:
+                        self.import_document(f, docx_title(f), folder, root, today, dry_run, stats)
+                    else:
+                        stats["ignored"] += 1
+                        self.stdout.write(f"  пропущен (не биография; --include-docx, чтобы импортировать): "
+                                          f"{f.relative_to(root)}")
 
         self.stdout.write(self.style.SUCCESS(
             ("ПРОБНЫЙ ЗАПУСК — ничего не записано. " if dry_run else "") +
             f"Люди: новых {stats['people_new']}, обновлено {stats['people_upd']}, уже были {stats['people_skip']}. "
             f"Документы: новых {stats['docs_new']}, уже были {stats['docs_skip']}. "
             f"Пропущено файлов Word: {stats['ignored']}."))
-        if not dry_run and (stats["people_new"] or stats["docs_new"]):
-            self.stdout.write("Всё импортировано скрытым. Проверьте и опубликуйте в кабинете: "
-                              "«Люди трассы» и «Документы».")
+        if not dry_run and publish:
+            self.stdout.write("Всё опубликовано: /people/ и /documents/ на сайте.")
+        elif not dry_run and (stats["people_new"] or stats["docs_new"]):
+            self.stdout.write("Всё импортировано скрытым. Проверьте и опубликуйте в кабинете "
+                              "или запустите команду ещё раз с --publish.")
 
     def import_person(self, folder, bio_doc, group, dry_run, update, stats):
         name = re.sub(r"\s+", " ", folder.name).strip()
         existing = Person.objects.filter(full_name=name).first()
         if existing and not update:
+            if self.publish and not dry_run and not existing.is_published:
+                existing.is_published = existing.publication_checked = True
+                existing.save(update_fields=["is_published", "publication_checked"])
             stats["people_skip"] += 1
             return
         data = parse_biography(docx_paragraphs(bio_doc), name)
@@ -160,6 +192,8 @@ class Command(BaseCommand):
         person = existing or Person(full_name=name, group=group)
         for k, v in data.items():
             setattr(person, k, v)
+        if self.publish:
+            person.is_published = person.publication_checked = True
         # Файлы отдаются модели несохранёнными: тогда портрет при сохранении
         # пройдёт сжатие и очистку метаданных, как и загруженный через кабинет.
         with ExitStack() as stack:
@@ -172,14 +206,19 @@ class Command(BaseCommand):
 
     def import_document(self, f, title, folder, root, today, dry_run, stats):
         topic = folder.name if folder != root else ""
-        if Document.objects.filter(title=title, topic=topic).exists():
+        existing = Document.objects.filter(title=title, topic=topic).first()
+        if existing:
+            if self.publish and not dry_run and not existing.is_published:
+                existing.is_published = True
+                existing.save(update_fields=["is_published"])
             stats["docs_skip"] += 1
             return
         self.stdout.write(f"  документ: [{topic or 'без темы'}] {title}")
         stats["docs_new"] += 1
         if dry_run:
             return
-        doc = Document(title=title, topic=topic, category="archive", published_at=today, is_published=False)
+        doc = Document(title=title, topic=topic, category="archive", published_at=today,
+                       is_published=self.publish)
         with f.open("rb") as fh:
             doc.file.save(f.name, File(fh), save=False)
         doc.save()
