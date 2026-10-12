@@ -56,15 +56,19 @@ def docx_paragraphs(path):
 
     В части биографий фото и текст свёрстаны таблицей или надписью, а
     python-docx в .paragraphs видит только абзацы верхнего уровня.
+    Читается только word/document.xml: python-docx загружает и картинки,
+    и падает на файлах, где ссылка на картинку есть, а самой картинки нет.
     """
-    import docx  # python-docx
-    from docx.oxml.ns import qn
-    W_P, W_T = qn("w:p"), qn("w:t")
+    import zipfile
+    from lxml import etree
+    w = "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}"
+    W_P, W_T = w + "p", w + "t"
     fallback = "{http://schemas.openxmlformats.org/markup-compatibility/2006}Fallback"
+    with zipfile.ZipFile(path) as z:
+        root = etree.fromstring(z.read("word/document.xml"), etree.XMLParser(resolve_entities=False, huge_tree=True))
     out = []
-    for p in docx.Document(str(path)).element.body.iter(W_P):
-        ancestors = list(p.iterancestors())
-        if any(a.tag == fallback for a in ancestors):
+    for p in root.iter(W_P):
+        if any(a.tag == fallback for a in p.iterancestors()):
             continue  # копия надписи для старых версий Word — иначе текст задвоится
         # текст только этого абзаца, без вложенных абзацев надписей
         text = "".join(t.text or "" for t in p.iter(W_T) if next(t.iterancestors(W_P)) is p)
@@ -119,10 +123,14 @@ def norm(name):
 
 
 def looks_like_person(folder):
-    """Папка человека: биография по шаблону, файл Word с ФИО папки
-    или (без Word) ФИО в имени папки и портрет внутри.
+    """Папка человека — имя папки похоже на ФИО и внутри биография по шаблону,
+    файл Word с тем же ФИО или (без Word) портрет.
 
     Возвращает (файл биографии или None, признак «это человек»)."""
+    name = norm(folder.name)
+    known = " " in name and Person.objects.filter(full_name=name).exists()  # уже импортирован раньше
+    if not (FIO.match(name) or known):
+        return None, False  # «Музей», «Трасса АлСиб», «Сочинения» — не люди
     docs = [d for d in sorted(folder.glob("*.docx")) if not d.name.startswith("~$")]
     for d in docs:
         if norm(d.stem).lower() == norm(folder.name).lower():
@@ -133,7 +141,7 @@ def looks_like_person(folder):
             continue
         if any(p.startswith("дата рождения") or p.rstrip(":") in BIO_HEADINGS for p in paras):
             return d, True
-    if not docs and FIO.match(norm(folder.name)):
+    if not docs:
         portrait = pick_portrait(folder)
         if portrait and "портрет" in portrait.name.lower():
             return None, True
@@ -185,7 +193,7 @@ class Command(BaseCommand):
         if not root.is_dir():
             raise CommandError(f"Нет такой папки: {root}")
         stats = {"people_new": 0, "people_upd": 0, "people_skip": 0, "docs_new": 0, "docs_skip": 0, "docs_removed": 0,
-                 "ignored": 0}
+                 "ignored": 0, "broken": 0}
         today = datetime.date.today()
 
         for folder in sorted(p for p in root.rglob("*") if p.is_dir()) + [root]:
@@ -215,7 +223,8 @@ class Command(BaseCommand):
             f"Люди: новых {stats['people_new']}, обновлено {stats['people_upd']}, уже были {stats['people_skip']}. "
             f"Документы: новых {stats['docs_new']}, уже были {stats['docs_skip']}"
             f"{', убрано дублей карточек ' + str(stats['docs_removed']) if stats['docs_removed'] else ''}. "
-            f"Пропущено файлов Word: {stats['ignored']}."))
+            f"Пропущено файлов Word: {stats['ignored']}."
+            f"{' Не прочитано биографий: ' + str(stats['broken']) + ' (см. выше).' if stats['broken'] else ''}"))
         if not dry_run and publish:
             self.stdout.write("Всё опубликовано: /people/ и /documents/ на сайте.")
         elif not dry_run and (stats["people_new"] or stats["docs_new"]):
@@ -233,7 +242,14 @@ class Command(BaseCommand):
                 existing.save(update_fields=["is_published", "publication_checked"])
             stats["people_skip"] += 1
             return
-        data = parse_biography(docx_paragraphs(bio_doc), name) if bio_doc else {}
+        data = {}
+        if bio_doc:
+            try:
+                data = parse_biography(docx_paragraphs(bio_doc), name)
+            except Exception as e:  # битый файл Word не должен останавливать импорт сотни карточек
+                stats["broken"] += 1
+                self.stderr.write(f"  ! не прочитан {bio_doc.relative_to(bio_doc.parents[1])}: {e}. "
+                                  f"Карточка без текста — заполните в кабинете или пересохраните файл в Word")
         portrait = pick_portrait(folder)
         pdf = next(iter(sorted(folder.glob("*.pdf"))), None)
         self.stdout.write(f"  {'обновить' if existing else 'человек'}: {name}"

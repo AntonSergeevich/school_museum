@@ -204,6 +204,35 @@ class ImportDriveTests(TestCase):
         self.assertFalse(Document.objects.filter(pk=stale.pk).exists())
         self.assertFalse(Document.objects.filter(topic__in=[folder.name, only_photo.name]).exists())
 
+    def test_topic_folder_not_person_and_broken_docx(self):
+        import zipfile
+        import docx
+        # в корне «Музей» лежит статья, похожая на биографию, — это не человек
+        article = docx.Document()
+        article.add_paragraph("Из Красноярска в Туруханск летели 36 дней")
+        article.add_paragraph("Боевой путь")
+        article.save(self.root / "Музей" / "Из Красноярска в Туруханск.docx")
+        # биография со ссылкой на картинку, которой нет в архиве (python-docx на таком падает)
+        folder = self.root / "Музей" / "Баско Иван Михайлович"
+        folder.mkdir()
+        src = folder / "tmp.docx"
+        d = docx.Document()
+        d.add_paragraph("Дата рождения: 1.01.1915")
+        img = folder / "pic.png"
+        img.write_bytes(image_bytes((50, 50), "PNG"))
+        d.add_picture(str(img))
+        d.save(src)
+        img.unlink()
+        with zipfile.ZipFile(src) as zin, zipfile.ZipFile(folder / "Баско Иван Михайлович.docx", "w") as zout:
+            for item in zin.infolist():
+                if not item.filename.startswith("word/media/"):
+                    zout.writestr(item, zin.read(item))
+        src.unlink()
+
+        call_command("import_drive", str(self.root), "--publish", stdout=io.StringIO(), stderr=io.StringIO())
+        self.assertFalse(Person.objects.filter(full_name="Музей").exists())
+        self.assertEqual(Person.objects.get(full_name="Баско Иван Михайлович").birth_date, "1.01.1915")
+
     def test_textbox_paragraphs_read_once(self):
         import docx
         from docx.oxml import parse_xml
