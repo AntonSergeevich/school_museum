@@ -171,6 +171,60 @@ class ImportDriveTests(TestCase):
         self.assertEqual(Document.objects.filter(is_published=False).count(), 0)
         self.assertEqual(Person.objects.count(), 1)
 
+    def test_table_layout_and_folder_name_docx(self):
+        import docx
+        folder = self.root / "Музей" / "Авдохин Григорий Егорович"
+        folder.mkdir()
+        d = docx.Document()
+        t = d.add_table(rows=3, cols=2)
+        t.cell(0, 0).text, t.cell(0, 1).text = "Дата рождения:", "07.10.1913"
+        t.cell(1, 0).text, t.cell(1, 1).text = "Звание:", "Капитан"
+        t.cell(2, 0).text = "Награды: орден Красной Звезды"
+        d.add_paragraph("Боевой путь")
+        d.add_paragraph("Техник по вооружению Канской военной авиашколы.")
+        d.save(folder / "Авдохин Григорий Егорович.docx")
+        (folder / "Портрет. 1945 год.png").write_bytes(image_bytes((400, 500), "PNG"))
+        (folder / "Авдохин Г.Е..pdf").write_bytes(b"%PDF-1.4 test")
+        only_photo = self.root / "Музей" / "Ермолаев Георгий Михайлович"
+        only_photo.mkdir()
+        (only_photo / "Портрет.png").write_bytes(image_bytes((400, 500), "PNG"))
+        (only_photo / "Ермолаев Г.М..pdf").write_bytes(b"%PDF-1.4 test")
+        # так их раньше импортировали — PDF в архив с темой-ФИО
+        stale = Document.objects.create(title="Авдохин Г.Е.", topic=folder.name, category="archive",
+                                        published_at="2026-10-12", file="documents/a.pdf")
+
+        call_command("import_drive", str(self.root), "--publish", stdout=io.StringIO())
+        p = Person.objects.get(full_name="Авдохин Григорий Егорович")
+        self.assertEqual(p.birth_date, "07.10.1913")
+        self.assertEqual(p.rank, "Капитан")
+        self.assertEqual(p.awards, "орден Красной Звезды")
+        self.assertIn("Канской", p.biography)
+        self.assertTrue(p.portrait and p.source_file)
+        self.assertTrue(Person.objects.filter(full_name="Ермолаев Георгий Михайлович").exists())
+        self.assertFalse(Document.objects.filter(pk=stale.pk).exists())
+        self.assertFalse(Document.objects.filter(topic__in=[folder.name, only_photo.name]).exists())
+
+    def test_textbox_paragraphs_read_once(self):
+        import docx
+        from docx.oxml import parse_xml
+        from museum.management.commands.import_drive import docx_paragraphs
+        d = docx.Document()
+        box = ('<w:p xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" '
+               'xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" '
+               'xmlns:wps="http://schemas.microsoft.com/office/word/2010/wordprocessingShape" '
+               'xmlns:v="urn:schemas-microsoft-com:vml"><w:r><mc:AlternateContent>'
+               '<mc:Choice Requires="wps"><w:drawing><wps:txbx><w:txbxContent>'
+               '<w:p><w:r><w:t>Дата рождения: 1.01.1920</w:t></w:r></w:p>'
+               '</w:txbxContent></wps:txbx></w:drawing></mc:Choice>'
+               '<mc:Fallback><w:pict><v:textbox><w:txbxContent>'
+               '<w:p><w:r><w:t>Дата рождения: 1.01.1920</w:t></w:r></w:p>'
+               '</w:txbxContent></v:textbox></w:pict></mc:Fallback>'
+               '</mc:AlternateContent></w:r></w:p>')
+        d.element.body.insert(0, parse_xml(box))
+        path = self.root / "box.docx"
+        d.save(path)
+        self.assertEqual([t for t in docx_paragraphs(path) if t], ["Дата рождения: 1.01.1920"])
+
     def test_dry_run_writes_nothing(self):
         call_command("import_drive", str(self.root), "--dry-run", stdout=io.StringIO())
         self.assertEqual(Person.objects.count(), 0)
