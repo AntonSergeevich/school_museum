@@ -9,6 +9,8 @@ client_body_timeout 120s;
 location /static/ {
     alias __ROOT__/staticfiles/;
     access_log off;
+    # collectstatic (whitenoise) кладёт рядом .gz-копии: three.js — 690 КБ, сжатый — около 170 КБ
+    gzip_static on;
     expires 30d;
     add_header Cache-Control "public";
 }

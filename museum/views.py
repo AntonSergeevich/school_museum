@@ -112,6 +112,11 @@ def tour(request):
     })
 
 
+def cockpit(request):
+    """3D-кабина Ил-62: осмотр, интерактивные органы управления, имитация полёта."""
+    return render(request, "museum/cockpit.html")
+
+
 def about(request):
     return render(request, "museum/about.html", {"timeline": TimelineEvent.objects.all()})
 

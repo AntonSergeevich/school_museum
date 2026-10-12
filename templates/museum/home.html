@@ -1,4 +1,4 @@
-{% extends "base.html" %}{% load static %}
+{% extends "base.html" %}{% load static museum_tags %}
 {% block body_class %}page-home{% endblock %}
 {% block content %}
 
@@ -74,13 +74,17 @@
       <p class="eyebrow">Главный экспонат</p>
       <h2 id="cockpit-title">Кабина Ил-62</h2>
       <p>Настоящая кабина дальнемагистрального лайнера установлена прямо в школе. Здесь ученики
-        пробуют себя в роли экипажа: командир, второй пилот, штурман, бортинженер.</p>
+        пробуют себя в роли экипажа: командир, второй пилот, штурман, бортинженер.
+        А в 3D-кабине можно потрогать каждый прибор, запустить двигатели и взлететь из Красноярска.</p>
       <ul class="facts">
         <li><b>1963</b><span>первый полёт Ил-62</span></li>
         <li><b>4</b><span>двигателя в хвостовой части</span></li>
         <li><b>~100</b><span>предметов в фонде музея</span></li>
       </ul>
-      <a class="btn" href="{% url 'museum:tour' %}">Заглянуть в кабину 360°</a>
+      <div class="btn-row">
+        <a class="btn btn--glow" href="{% url 'museum:cockpit' %}">Сесть в 3D-кабину</a>
+        <a class="btn btn--ghost" href="{% url 'museum:tour' %}">Панорама 360°</a>
+      </div>
     </div>
     <div class="dash" aria-hidden="true">
       <div class="gauge" data-gauge="speed">
@@ -111,7 +115,7 @@
       <p class="eyebrow">Посадочные талоны</p>
       <h2 id="featured-title">Избранные экспонаты</h2>
     </header>
-    <div class="tickets">
+    <div class="tickets tickets--carousel">
       {% for ex in featured %}{% include "museum/_ticket.html" with ex=ex %}{% endfor %}
     </div>
     <p class="center"><a class="btn btn--ghost" href="{% url 'museum:exhibits' %}">Весь фонд — {{ exhibits_total }}</a></p>
@@ -125,7 +129,7 @@
     <header class="section__head">
       <p class="eyebrow">Экипажи трассы</p>
       <h2 id="crew-title">Люди трассы Аляска — Сибирь</h2>
-      <p class="muted">{{ people_total }} имён лётчиков, штурманов и техников, собранных музеем.</p>
+      <p class="muted">{{ people_total }} {{ people_total|ru_plural:"имя,имени,имён" }} лётчиков, штурманов и техников, собранных музеем.</p>
     </header>
     <div class="people people--wall">{% for p in people %}{% include "museum/_person_card.html" %}{% endfor %}</div>
     <p class="center"><a class="btn btn--ghost" href="{% url 'museum:people' %}">Все люди трассы</a></p>

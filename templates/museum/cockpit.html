@@ -1,0 +1,124 @@
+{% extends "base.html" %}{% load static %}
+{% block title %}Кабина Ил-62 в 3D{% endblock %}
+{% block description %}Интерактивная 3D-кабина самолёта Ил-62: рассмотрите приборы, потрогайте штурвал и РУДы, запустите двигатели и попробуйте взлететь из Красноярска.{% endblock %}
+{% block body_class %}page-cockpit{% endblock %}
+{% block head %}
+<script type="importmap">{"imports": {"three": "{% static 'vendor/three/three.module.min.js' %}"}}</script>
+<link rel="modulepreload" href="{% static 'vendor/three/three.module.min.js' %}">
+{% endblock %}
+{% block content %}
+<section class="pit" id="cockpit-app" aria-label="Трёхмерная модель кабины самолёта Ил-62">
+  <canvas class="pit__canvas" id="pit-canvas" tabindex="0"
+          aria-label="Кабина Ил-62. Перетаскивайте, чтобы осмотреться; нажмите на прибор, чтобы узнать о нём. Список всех элементов — кнопка «Все элементы»."></canvas>
+
+  <div class="pit__loader" data-loader><span class="pit__spinner" aria-hidden="true"></span><p>Готовим кабину к вылету…</p></div>
+
+  <div class="pit__top">
+    <div class="pit__title">
+      <p class="eyebrow">3D · учебная модель</p>
+      <h1>Кабина Ил-62</h1>
+    </div>
+    <div class="pit__tools" role="toolbar" aria-label="Управление моделью">
+      <button type="button" class="pit__btn" data-action="list" aria-controls="pit-list" aria-expanded="false">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h10" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/></svg><span>Все элементы</span></button>
+      <button type="button" class="pit__btn" data-action="night" aria-pressed="false">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 15.5A8.5 8.5 0 018.5 4 8.5 8.5 0 1020 15.5z" fill="currentColor"/></svg><span>Ночь</span></button>
+      <button type="button" class="pit__btn" data-action="sound" aria-pressed="false">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9v6h4l5 4V5L8 9H4zm12.5 3a4.5 4.5 0 00-2.5-4v8a4.5 4.5 0 002.5-4z" fill="currentColor"/></svg><span>Звук</span></button>
+      <button type="button" class="pit__btn" data-action="help" aria-controls="pit-help">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2a10 10 0 100 20 10 10 0 000-20zm1 16h-2v-2h2zm2.1-7.7l-.9.9A3.4 3.4 0 0013 14h-2v-.5a4 4 0 011.2-2.8l1.2-1.3A2 2 0 1010 8H8a4 4 0 118 0 3.2 3.2 0 01-.9 2.3z" fill="currentColor"/></svg><span>Как управлять</span></button>
+      <button type="button" class="pit__btn pit__btn--icon" data-action="fullscreen" aria-label="Во весь экран">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" stroke="currentColor" stroke-width="2" fill="none"/></svg></button>
+    </div>
+  </div>
+
+  <nav class="pit__views" aria-label="Места в кабине" data-views></nav>
+
+  <div class="pit__fly" data-fly-start>
+    <button type="button" class="btn btn--glow" data-action="takeoff">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 19h20v2H2zm.6-6.2l1.5-.9 2.7 1.6 4.4-2.6L5.4 7l2-1.2 8.4 3.3 4.1-2.4a1.6 1.6 0 011.6 2.7L6.6 17.3z" fill="currentColor"/></svg>
+      Взлёт<span class="pit__long"> из Красноярска</span></button>
+    <button type="button" class="btn btn--ghost" data-action="landing"><span class="pit__long">Заход на посадку</span><span class="pit__short">Посадка</span></button>
+  </div>
+
+  <aside class="pit__info" id="pit-info" hidden aria-live="polite">
+    <button type="button" class="pit__close" data-action="close-info" aria-label="Закрыть описание">×</button>
+    <p class="eyebrow" data-info-group></p>
+    <h2 data-info-title></h2>
+    <div data-info-text></div>
+    <p class="pit__hint" data-info-hint hidden></p>
+  </aside>
+
+  <aside class="pit__list" id="pit-list" hidden aria-label="Все элементы кабины">
+    <div class="pit__list-head"><h2>Элементы кабины</h2>
+      <button type="button" class="pit__close" data-action="list" aria-label="Закрыть список">×</button></div>
+    <div data-list></div>
+  </aside>
+
+  <div class="pit__readouts" data-readouts hidden aria-live="off">
+    <div><small>СКОРОСТЬ</small><b data-r="spd">0</b><small>км/ч</small></div>
+    <div><small>ВЫСОТА</small><b data-r="alt">0</b><small>м</small></div>
+    <div><small>ВЕРТ.</small><b data-r="vs">0</b><small>м/с</small></div>
+    <div><small>КУРС</small><b data-r="hdg">0</b><small>°</small></div>
+    <div><small>ГАЗ</small><b data-r="thr">0</b><small>%</small></div>
+  </div>
+
+  <div class="pit__hud" data-hud hidden>
+    <div class="pit__switches">
+      <button type="button" data-action="gear" class="pit__chip">Шасси <b data-r="gear">выпущ.</b></button>
+      <button type="button" data-action="flaps" class="pit__chip">Закрылки <b data-r="flaps">15°</b></button>
+      <button type="button" data-action="brake" class="pit__chip">Тормоз <b data-r="brake">вкл</b></button>
+      <button type="button" data-action="ap" class="pit__chip">Автопилот <b data-r="ap">выкл</b></button>
+      <button type="button" data-action="reset" class="pit__chip">Заново</button>
+      <button type="button" data-action="exit" class="pit__chip pit__chip--exit">Выйти из полёта</button>
+    </div>
+    <p class="pit__toast" data-toast role="status"></p>
+  </div>
+
+  <div class="pit__touch" data-touch hidden>
+    <label class="pit__throttle"><span>ГАЗ</span>
+      <input type="range" min="0" max="100" value="0" data-touch-throttle aria-label="Рычаги управления двигателями"></label>
+    <div class="pit__yoke" data-touch-yoke aria-label="Штурвал: ведите пальцем" role="application"><span></span></div>
+  </div>
+
+  <div class="pit__tooltip" data-tooltip hidden></div>
+
+  <dialog class="pit__help" id="pit-help">
+    <h2>Как управлять</h2>
+    <div class="pit__help-grid">
+      <section>
+        <h3>Осмотр кабины</h3>
+        <ul>
+          <li><b>Осмотреться</b> — тяните мышью или пальцем</li>
+          <li><b>Приблизить</b> — колёсико мыши или щипок двумя пальцами</li>
+          <li><b>Узнать о приборе</b> — нажмите на него</li>
+          <li><b>Потрогать</b> — тяните штурвал и РУДы, щёлкайте тумблерами, кнопками запуска, краном шасси</li>
+          <li><b>Пересесть</b> — кнопки внизу: командир, второй пилот, бортинженер, штурман…</li>
+        </ul>
+      </section>
+      <section>
+        <h3>Полёт</h3>
+        <ul>
+          <li><kbd>S</kbd>/<kbd>↓</kbd> — штурвал на себя (нос вверх), <kbd>W</kbd>/<kbd>↑</kbd> — от себя</li>
+          <li><kbd>A</kbd>/<kbd>D</kbd>, <kbd>←</kbd>/<kbd>→</kbd> — крен влево и вправо</li>
+          <li><kbd>R</kbd>/<kbd>F</kbd> или <kbd>PgUp</kbd>/<kbd>PgDn</kbd> — газ больше / меньше</li>
+          <li><kbd>B</kbd> — тормоз, <kbd>G</kbd> — шасси, <kbd>V</kbd> — закрылки, <kbd>P</kbd> — автопилот</li>
+          <li>На телефоне: слева — рычаг газа, справа — штурвал под пальцем</li>
+        </ul>
+        <p class="muted">Взлёт: снимите тормоз, дайте полный газ, на скорости 300 км/ч плавно возьмите штурвал на себя. После отрыва уберите шасси.</p>
+      </section>
+    </div>
+    <p class="muted">Модель — учебная реконструкция: расположение приборов упрощено, а лётные характеристики — приблизительные. Настоящая кабина Ил-62 ждёт вас в музее школы № 149.</p>
+    <form method="dialog"><button class="btn">Понятно</button></form>
+  </dialog>
+
+  <noscript><div class="pit__fallback"><p>Для 3D-кабины нужен JavaScript. Посмотрите <a href="{% url 'museum:tour' %}">панораму кабины 360°</a>.</p></div></noscript>
+  <div class="pit__fallback" data-fallback hidden>
+    <h2>Браузер не поддерживает 3D</h2>
+    <p>Для трёхмерной кабины нужен WebGL. Попробуйте другой браузер или посмотрите <a href="{% url 'museum:tour' %}">панораму 360°</a>.</p>
+  </div>
+</section>
+{% endblock %}
+{% block scripts %}
+<script type="module" src="{% static 'js/cockpit.js' %}"></script>
+{% endblock %}

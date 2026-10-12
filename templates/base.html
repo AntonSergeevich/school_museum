@@ -53,6 +53,7 @@
     </a>
     <nav class="nav" id="nav" aria-label="Основное меню">
       <a href="{% url 'museum:tour' %}" {% if request.resolver_match.url_name == 'tour' %}aria-current="page"{% endif %}>Тур 360°</a>
+      <a href="{% url 'museum:cockpit' %}" {% if request.resolver_match.url_name == 'cockpit' %}aria-current="page"{% endif %}>Кабина 3D</a>
       <a href="{% url 'museum:exhibits' %}" {% if request.resolver_match.url_name == 'exhibits' or request.resolver_match.url_name == 'exhibit' %}aria-current="page"{% endif %}>Экспонаты</a>
       <a href="{% url 'museum:people' %}" {% if request.resolver_match.url_name == 'people' or request.resolver_match.url_name == 'person' %}aria-current="page"{% endif %}>Люди трассы</a>
       <a href="{% url 'museum:about' %}" {% if request.resolver_match.url_name == 'about' %}aria-current="page"{% endif %}>О музее</a>
