@@ -127,11 +127,11 @@ scp "$env:USERPROFILE\Downloads\Музей-*.zip" root@141.133.192.56:/srv/impor
 
 ```bash
 tmux new -s import
-cd /srv/import && for z in *.zip; do unzip -O UTF-8 -o -q "$z"; done && ls   # -O UTF-8: русские имена файлов
+cd /srv/import && for z in *.zip; do unzip -O CP866 -o -q "$z"; done && du -sh -- */   # -O CP866: русские имена из архивов Windows
 chown -R museum:museum /srv/import
 cd /srv/museum
-sudo -u museum .venv/bin/python manage.py import_drive /srv/import/Музей --dry-run --include-docx   # что будет
-sudo -u museum .venv/bin/python manage.py import_drive /srv/import/Музей --publish --include-docx   # импорт и публикация
+sudo -u museum -g www-data .venv/bin/python manage.py import_drive /srv/import/Музей --dry-run --include-docx   # что будет
+sudo -u museum -g www-data .venv/bin/python manage.py import_drive /srv/import/Музей --publish --include-docx   # импорт и публикация
 ```
 
 | Флаг | Что делает |
@@ -140,6 +140,10 @@ sudo -u museum .venv/bin/python manage.py import_drive /srv/import/Музей --
 | `--publish` | Сразу опубликовать и отметить «Публикация согласована». Использовать, только когда согласия получены |
 | `--include-docx` | Файлы Word вне карточек людей (сочинения) импортировать как документы архива |
 | `--update` | Перезаписать тексты и портреты уже импортированных людей (если на Диске что-то исправили) |
+
+Если после распаковки рядом с «Музей» появилась папка с «кракозябрами» и основной объём лежит в ней —
+удалите обе папки и распакуйте с `-O UTF-8` вместо `-O CP866`. `-g www-data` обязателен: без него nginx
+не сможет отдать портреты (в журнале `Permission denied`, на сайте пустые карточки).
 
 Без `--publish` всё появляется **скрытым**: проверить и опубликовать можно в кабинете («Люди трассы» →
 действие «Опубликовать») или повторным запуском с `--publish`. Повторный запуск дублей не создаёт.

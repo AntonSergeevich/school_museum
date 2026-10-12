@@ -3,10 +3,17 @@
     python manage.py import_drive /srv/import/Музей --dry-run   # посмотреть, что будет
     python manage.py import_drive /srv/import/Музей             # импортировать
 
+На сервере — от пользователя сайта и с группой nginx, иначе nginx не сможет
+отдать загруженные портреты (403):
+
+    sudo -u museum -g www-data .venv/bin/python manage.py import_drive …
+
 Как распознаётся содержимое:
-* папка с .docx-биографией («Дата рождения… Боевой путь…») — карточка
+* папка с .docx-биографией («Дата рождения… Боевой путь…», в том числе
+  свёрстанной таблицей) или с файлом Word, названным как папка, — карточка
   человека: ФИО из имени папки, портрет — картинка из папки (предпочтительно
-  со словом «Портрет»), PDF — исходный документ;
+  со словом «Портрет»), PDF — исходный документ; папка с ФИО и портретом,
+  но без Word — карточка без текста;
 * остальные папки — тема архива: каждый PDF становится документом
   в «Архивных материалах» с темой по имени папки.
 
@@ -45,22 +52,47 @@ KEY_VALUE = re.compile(r"^\s*([А-ЯЁа-яё][А-ЯЁа-яё \-]{2,40})\s*:\s*(
 
 
 def docx_paragraphs(path):
+    """Все абзацы документа по порядку — и из таблиц, и из надписей.
+
+    В части биографий фото и текст свёрстаны таблицей или надписью, а
+    python-docx в .paragraphs видит только абзацы верхнего уровня.
+    """
     import docx  # python-docx
-    return [p.text.strip() for p in docx.Document(str(path)).paragraphs]
+    from docx.oxml.ns import qn
+    W_P, W_T = qn("w:p"), qn("w:t")
+    fallback = "{http://schemas.openxmlformats.org/markup-compatibility/2006}Fallback"
+    out = []
+    for p in docx.Document(str(path)).element.body.iter(W_P):
+        ancestors = list(p.iterancestors())
+        if any(a.tag == fallback for a in ancestors):
+            continue  # копия надписи для старых версий Word — иначе текст задвоится
+        # текст только этого абзаца, без вложенных абзацев надписей
+        text = "".join(t.text or "" for t in p.iter(W_T) if next(t.iterancestors(W_P)) is p)
+        out.append(re.sub(r"\s+", " ", text).strip())
+    return out
 
 
 def parse_biography(paragraphs, full_name=""):
     """Разобрать биографию по шаблону музея. Возвращает словарь полей Person."""
     data = {"biography": ""}
     bio, in_bio, extra = [], False, []
+    pending = None  # «Дата рождения:» в одной ячейке таблицы, значение — в соседней
     for text in paragraphs:
         if not text:
             continue
+        if pending:
+            field, pending = pending, None
+            if not data.get(field) and not KEY_VALUE.match(text) and text.lower().rstrip(":") not in BIO_HEADINGS:
+                data[field] = text[:200] if field != "awards" else text
+                continue
         if not in_bio and full_name and text.lower() == full_name.lower():
             continue
         low = text.lower().rstrip(":")
         if not in_bio and low in BIO_HEADINGS:
             in_bio = True
+            continue
+        if not in_bio and low in FIELDS:
+            pending = FIELDS[low]
             continue
         m = KEY_VALUE.match(text) if not in_bio else None
         if m:
@@ -79,17 +111,33 @@ def parse_biography(paragraphs, full_name=""):
     return data
 
 
+FIO = re.compile(r"^[А-ЯЁ][а-яё]+(?:-[А-ЯЁ][а-яё]+)?(?: [А-ЯЁ][а-яё]+){1,3}$")
+
+
+def norm(name):
+    return re.sub(r"\s+", " ", name).strip()
+
+
 def looks_like_person(folder):
-    for d in folder.glob("*.docx"):
-        if d.name.startswith("~$"):
-            continue
+    """Папка человека: биография по шаблону, файл Word с ФИО папки
+    или (без Word) ФИО в имени папки и портрет внутри.
+
+    Возвращает (файл биографии или None, признак «это человек»)."""
+    docs = [d for d in sorted(folder.glob("*.docx")) if not d.name.startswith("~$")]
+    for d in docs:
+        if norm(d.stem).lower() == norm(folder.name).lower():
+            return d, True
         try:
-            text = " ".join(docx_paragraphs(d)[:15]).lower()
+            paras = [p.lower() for p in docx_paragraphs(d) if p][:60]
         except Exception:
             continue
-        if "дата рождения" in text or any(h in text for h in BIO_HEADINGS):
-            return d
-    return None
+        if any(p.startswith("дата рождения") or p.rstrip(":") in BIO_HEADINGS for p in paras):
+            return d, True
+    if not docs and FIO.match(norm(folder.name)):
+        portrait = pick_portrait(folder)
+        if portrait and "портрет" in portrait.name.lower():
+            return None, True
+    return None, False
 
 
 def pick_portrait(folder):
@@ -136,12 +184,13 @@ class Command(BaseCommand):
         root = Path(root)
         if not root.is_dir():
             raise CommandError(f"Нет такой папки: {root}")
-        stats = {"people_new": 0, "people_upd": 0, "people_skip": 0, "docs_new": 0, "docs_skip": 0, "ignored": 0}
+        stats = {"people_new": 0, "people_upd": 0, "people_skip": 0, "docs_new": 0, "docs_skip": 0, "docs_removed": 0,
+                 "ignored": 0}
         today = datetime.date.today()
 
         for folder in sorted(p for p in root.rglob("*") if p.is_dir()) + [root]:
-            bio_doc = looks_like_person(folder)
-            if bio_doc:
+            bio_doc, is_person = looks_like_person(folder)
+            if is_person:
                 self.import_person(folder, bio_doc, group, dry_run, update, stats)
                 continue
             files = sorted(f for f in folder.iterdir() if f.is_file())
@@ -164,7 +213,8 @@ class Command(BaseCommand):
         self.stdout.write(self.style.SUCCESS(
             ("ПРОБНЫЙ ЗАПУСК — ничего не записано. " if dry_run else "") +
             f"Люди: новых {stats['people_new']}, обновлено {stats['people_upd']}, уже были {stats['people_skip']}. "
-            f"Документы: новых {stats['docs_new']}, уже были {stats['docs_skip']}. "
+            f"Документы: новых {stats['docs_new']}, уже были {stats['docs_skip']}"
+            f"{', убрано дублей карточек ' + str(stats['docs_removed']) if stats['docs_removed'] else ''}. "
             f"Пропущено файлов Word: {stats['ignored']}."))
         if not dry_run and publish:
             self.stdout.write("Всё опубликовано: /people/ и /documents/ на сайте.")
@@ -173,7 +223,9 @@ class Command(BaseCommand):
                               "или запустите команду ещё раз с --publish.")
 
     def import_person(self, folder, bio_doc, group, dry_run, update, stats):
-        name = re.sub(r"\s+", " ", folder.name).strip()
+        name = norm(folder.name)
+        if not dry_run:
+            self.drop_misfiled_documents(folder, stats)
         existing = Person.objects.filter(full_name=name).first()
         if existing and not update:
             if self.publish and not dry_run and not existing.is_published:
@@ -181,7 +233,7 @@ class Command(BaseCommand):
                 existing.save(update_fields=["is_published", "publication_checked"])
             stats["people_skip"] += 1
             return
-        data = parse_biography(docx_paragraphs(bio_doc), name)
+        data = parse_biography(docx_paragraphs(bio_doc), name) if bio_doc else {}
         portrait = pick_portrait(folder)
         pdf = next(iter(sorted(folder.glob("*.pdf"))), None)
         self.stdout.write(f"  {'обновить' if existing else 'человек'}: {name}"
@@ -203,6 +255,14 @@ class Command(BaseCommand):
                 person.source_file = File(stack.enter_context(pdf.open("rb")), name=pdf.name)
             person.save()
         stats["people_upd" if existing else "people_new"] += 1
+
+    def drop_misfiled_documents(self, folder, stats):
+        """Прошлые версии импорта не узнавали часть людей, и их PDF попадали
+        в «Архивные материалы» с темой-ФИО. Теперь это карточка — дубли убираем."""
+        for doc in Document.objects.filter(topic=folder.name, category="archive"):
+            doc.file.delete(save=False)
+            doc.delete()
+            stats["docs_removed"] += 1
 
     def import_document(self, f, title, folder, root, today, dry_run, stats):
         topic = folder.name if folder != root else ""
