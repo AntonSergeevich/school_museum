@@ -241,7 +241,7 @@ class Document(models.Model):
     title = models.CharField("Название", max_length=255)
     category = models.CharField("Категория", max_length=20, choices=CATEGORIES, default="museum")
     topic = models.CharField("Тема", max_length=120, blank=True, help_text="Например, «Трасса АлСиб»")
-    file = models.FileField("Файл (PDF)", upload_to="documents/")
+    file = models.FileField("Файл (PDF, Word)", upload_to="documents/")
     is_published = models.BooleanField("Опубликован", default=True)
     published_at = models.DateField("Дата размещения")
     order = models.PositiveIntegerField("Порядок", default=0)
@@ -253,6 +253,10 @@ class Document(models.Model):
 
     def __str__(self):
         return self.title
+
+    @property
+    def extension(self):
+        return self.file.name.rsplit(".", 1)[-1].upper() if "." in self.file.name else "ФАЙЛ"
 
 
 class ExcursionRequest(models.Model):

@@ -11,7 +11,7 @@
     {% for g in groups %}
       <h2>{{ g.grouper }}</h2>
       <ul class="docs">{% for d in g.list %}
-        <li><a href="{{ d.file.url }}" target="_blank" rel="noopener"><span class="docs__icon" aria-hidden="true">PDF</span>
+        <li><a href="{{ d.file.url }}" target="_blank" rel="noopener"><span class="docs__icon" aria-hidden="true">{{ d.extension }}</span>
           <span>{{ d.title }}<small>{% if d.topic %}{{ d.topic }} · {% endif %}размещён {{ d.published_at|date:"d.m.Y" }}</small></span></a></li>
       {% endfor %}</ul>
     {% empty %}
